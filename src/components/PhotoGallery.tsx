@@ -10,7 +10,7 @@ import {
   Maximize2
 } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
-import { supabase } from '../lib/supabase';
+import { supabase, uploadFile } from '../lib/supabase';
 import { GalleryPhoto } from '../types';
 
 export default function PhotoGallery() {
@@ -19,6 +19,8 @@ export default function PhotoGallery() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedPhoto, setSelectedPhoto] = useState<GalleryPhoto | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const BUCKET_NAME = 'gallery';
 
   useEffect(() => {
     const fetchPhotos = async () => {
@@ -58,9 +60,10 @@ export default function PhotoGallery() {
     if (!confirm("Delete this photo?")) return;
     try {
       if (photo.url) {
-        const path = photo.url.split('/public/choir_files/')[1];
-        if (path) {
-          await supabase.storage.from('choir_files').remove([path]);
+        // Extract filename from URL
+        const filename = photo.url.split('/').pop()?.split('?')[0];
+        if (filename) {
+          await supabase.storage.from(BUCKET_NAME).remove([filename]);
         }
       }
       await supabase.from('gallery_photos').delete().eq('id', photo.id);
@@ -166,21 +169,14 @@ function PhotoUploadModal({ onClose, uid }: { onClose: () => void, uid: string }
     setIsUploading(true);
     try {
       const timestamp = Date.now();
-      const filePath = `gallery/${timestamp}_${file.name}`;
+      const sanitizedName = file.name.replace(/[^a-z0-9.]/gi, '_').toLowerCase();
+      const filePath = `${timestamp}_${sanitizedName}`;
       
-      const { data, error } = await supabase.storage
-        .from('choir_files')
-        .upload(filePath, file);
-
-      if (error) throw error;
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('choir_files')
-        .getPublicUrl(filePath);
+      const { publicUrl } = await uploadFile('gallery', filePath, file);
 
       const { error: dbError } = await supabase.from('gallery_photos').insert({
         url: publicUrl,
-        caption,
+        caption: caption.trim() || 'SAPCYM Activity',
         uploaded_by: uid
       });
 
@@ -188,7 +184,7 @@ function PhotoUploadModal({ onClose, uid }: { onClose: () => void, uid: string }
       onClose();
     } catch (e) {
       console.error(e);
-      alert("Error uploading photo.");
+      alert(e instanceof Error ? e.message : "Error uploading photo.");
     } finally {
       setIsUploading(false);
     }

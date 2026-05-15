@@ -138,7 +138,14 @@ export default function Dashboard() {
       <header className="flex flex-col lg:flex-row lg:items-end justify-between gap-12 py-8 relative">
         <div className="space-y-6">
           <div className="inline-flex items-center gap-3 px-4 py-2 bg-brand-blue/5 rounded-full text-brand-blue text-[10px] uppercase font-black tracking-widest border border-brand-blue/10">
-            <LayoutDashboard size={14} />
+            <div className="w-5 h-5 rounded-md overflow-hidden shrink-0">
+              <img 
+                src="https://upload.wikimedia.org/wikipedia/commons/thumb/c/ca/Saint_Paul_by_El_Greco_%28Prado%29.jpg/800px-Saint_Paul_by_El_Greco_%28Prado%29.jpg" 
+                alt="Saint Paul" 
+                className="w-full h-full object-cover"
+                referrerPolicy="no-referrer"
+              />
+            </div>
             Ministry Overview
           </div>
           <h1 className="text-5xl lg:text-7xl xl:text-8xl font-serif font-black tracking-tighter text-brand-blue leading-[0.85]">

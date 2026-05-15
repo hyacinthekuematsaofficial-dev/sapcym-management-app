@@ -17,7 +17,7 @@ import {
   Trash2
 } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
-import { supabase } from '../lib/supabase';
+import { supabase, uploadFile } from '../lib/supabase';
 import { Song } from '../types';
 import { format, parseISO } from 'date-fns';
 
@@ -156,20 +156,20 @@ function SongCard({ song, canManage }: { song: Song, canManage: boolean }) {
       // Delete files from storage if they exist
       const filesToDelete = [];
       if (song.scoreUrl) {
-         const path = song.scoreUrl.split('/public/choir_files/')[1];
-         if (path) filesToDelete.push(path);
+         const filename = song.scoreUrl.split('/').pop()?.split('?')[0];
+         if (filename) filesToDelete.push(`songs/${song.id}/${filename}`);
       }
       if (song.lyricsUrl) {
-         const path = song.lyricsUrl.split('/public/choir_files/')[1];
-         if (path) filesToDelete.push(path);
+         const filename = song.lyricsUrl.split('/').pop()?.split('?')[0];
+         if (filename) filesToDelete.push(`songs/${song.id}/${filename}`);
       }
       if (song.audioUrl) {
-         const path = song.audioUrl.split('/public/choir_files/')[1];
-         if (path) filesToDelete.push(path);
+         const filename = song.audioUrl.split('/').pop()?.split('?')[0];
+         if (filename) filesToDelete.push(`songs/${song.id}/${filename}`);
       }
       
       if (filesToDelete.length > 0) {
-        await supabase.storage.from('choir_files').remove(filesToDelete);
+        await supabase.storage.from('ministry_files').remove(filesToDelete);
       }
       
       await supabase.from('songs').delete().eq('id', song.id);
@@ -334,16 +334,7 @@ function UploadModal({ onClose, uid }: { onClose: () => void, uid: string }) {
           const extension = file.name.split('.').pop();
           const filePath = `songs/${songId}/${type}.${extension}`;
           
-          const { data, error } = await supabase.storage
-            .from('choir_files')
-            .upload(filePath, file);
-
-          if (error) throw error;
-
-          const { data: { publicUrl } } = supabase.storage
-            .from('choir_files')
-            .getPublicUrl(filePath);
-
+          const { publicUrl } = await uploadFile('ministry_files', filePath, file);
           urls[`${type}_url`] = publicUrl;
         }
       }

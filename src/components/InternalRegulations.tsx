@@ -10,7 +10,7 @@ import {
   FileText
 } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
-import { supabase } from '../lib/supabase';
+import { supabase, uploadFile } from '../lib/supabase';
 import ReactMarkdown from 'react-markdown';
 
 const DEFAULT_CONTENT = `
@@ -90,27 +90,18 @@ export default function InternalRegulations() {
     }
 
     setIsUploading(true);
-    const fileExt = file.name.split('.').pop();
-    const fileName = `official_document_${Date.now()}.${fileExt}`;
+    const fileName = `official_document_${Date.now()}.pdf`;
     const filePath = `settings/${fileName}`;
 
-    const { data, error } = await supabase.storage
-      .from('choir_files')
-      .upload(filePath, file);
-
-    if (error) {
+    try {
+      const { publicUrl } = await uploadFile('ministry_files', filePath, file);
+      setEditedPdfUrl(publicUrl);
+    } catch (error) {
       console.error("Upload error:", error);
-      alert("Upload failed. Make sure 'choir_files' bucket exists.");
+      alert("Upload failed. Make sure 'ministry_files' bucket exists.");
+    } finally {
       setIsUploading(false);
-      return;
     }
-
-    const { data: { publicUrl } } = supabase.storage
-      .from('choir_files')
-      .getPublicUrl(filePath);
-
-    setEditedPdfUrl(publicUrl);
-    setIsUploading(false);
   };
 
   const handleSave = async () => {

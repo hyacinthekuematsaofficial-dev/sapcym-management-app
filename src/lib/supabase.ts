@@ -14,9 +14,12 @@ const isValidSupabaseUrl = (url: any): url is string => {
   }
 };
 
-if (!isValidSupabaseUrl(supabaseUrl) || !supabaseKey) {
+const isConfigured = isValidSupabaseUrl(supabaseUrl) && supabaseKey && supabaseKey !== 'placeholder';
+
+if (!isConfigured) {
   console.warn(
-    'Supabase configuration incomplete or invalid. Please set VITE_SUPABASE_URL and VITE_SUPABASE_KEY correctly.'
+    'Supabase configuration incomplete or invalid. Requests will fail.\n' +
+    'Please set VITE_SUPABASE_URL and VITE_SUPABASE_KEY in your environment variables.'
   );
 }
 
@@ -26,15 +29,48 @@ export const supabase = createClient(
   supabaseKey || 'placeholder'
 );
 
+/**
+ * Uploads a file to a Supabase Storage bucket.
+ * @param bucket - The name of the bucket (e.g., 'gallery')
+ * @param path - The internal path (e.g., 'uploads/my-image.jpg')
+ * @param file - The File object from an input or drag-and-drop
+ */
+export const uploadFile = async (bucket: string, path: string, file: File) => {
+  if (!isConfigured) {
+    throw new Error('Supabase is not configured. Please add your API keys.');
+  }
+
+  const { data, error } = await supabase.storage
+    .from(bucket)
+    .upload(path, file, {
+      cacheControl: '3600',
+      upsert: true
+    });
+
+  if (error) throw error;
+  
+  // Get public URL
+  const { data: { publicUrl } } = supabase.storage
+    .from(bucket)
+    .getPublicUrl(path);
+
+  return { data, publicUrl };
+};
+
 // Simplified Auth Helpers
 export const signInWithGoogle = async () => {
+  if (!isConfigured) {
+    console.error('Sign-in failed: Supabase keys missing.');
+    return;
+  }
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
     options: {
       redirectTo: window.location.origin
     }
   });
-  return { data, error };
+  if (error) throw error;
+  return data;
 };
 
 export const signOut = () => supabase.auth.signOut();

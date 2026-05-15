@@ -84,8 +84,13 @@ export default function LandingPage() {
       <nav className="fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-md border-b border-gray-100">
         <div className="max-w-7xl mx-auto px-8 h-20 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-black rounded-xl flex items-center justify-center text-white">
-              <Music size={24} />
+            <div className="w-10 h-10 rounded-xl overflow-hidden shadow-md">
+              <img 
+                src="https://upload.wikimedia.org/wikipedia/commons/thumb/c/ca/Saint_Paul_by_El_Greco_%28Prado%29.jpg/800px-Saint_Paul_by_El_Greco_%28Prado%29.jpg" 
+                alt="Saint Paul" 
+                className="w-full h-full object-cover"
+                referrerPolicy="no-referrer"
+              />
             </div>
             <span className="font-serif font-bold text-2xl tracking-tighter text-black">SAPCYM</span>
           </div>
@@ -109,10 +114,20 @@ export default function LandingPage() {
             className="space-y-8"
           >
             <div className="inline-flex items-center gap-2 px-4 py-2 bg-black/5 rounded-full text-black text-xs font-bold uppercase tracking-widest border border-black/10">
-              <ShieldCheck size={14} />
+              <div className="w-5 h-5 rounded-md overflow-hidden shrink-0">
+                <img 
+                  src="https://upload.wikimedia.org/wikipedia/commons/thumb/c/ca/Saint_Paul_by_El_Greco_%28Prado%29.jpg/800px-Saint_Paul_by_El_Greco_%28Prado%29.jpg" 
+                  alt="Saint Paul" 
+                  className="w-full h-full object-cover"
+                  referrerPolicy="no-referrer"
+                />
+              </div>
               Official Ministry Portal
             </div>
-            <h1 className="text-7xl lg:text-8xl font-serif font-bold tracking-tighter text-black leading-[0.9]">
+            <h1 
+              style={{ backgroundColor: '#eef1f7', borderColor: '#000000' }}
+              className="text-7xl lg:text-8xl font-serif font-bold tracking-tighter text-black leading-[0.9] border"
+            >
               The Heart <br />
               <span className="italic opacity-50">of Worship.</span>
             </h1>
@@ -122,7 +137,8 @@ export default function LandingPage() {
             <div className="flex flex-wrap gap-4 pt-4">
               <button 
                 onClick={handleSignIn}
-                className="px-10 py-5 bg-black text-white rounded-2xl font-bold text-lg hover:scale-105 transition-all shadow-2xl flex items-center gap-3"
+                style={{ backgroundColor: '#156dd2' }}
+                className="px-10 py-5 text-white rounded-2xl font-bold text-lg hover:scale-105 transition-all shadow-2xl flex items-center gap-3"
               >
                 Join the Ministry
                 <ChevronRight size={20} />
@@ -237,8 +253,13 @@ export default function LandingPage() {
       <footer className="py-20 border-t border-gray-100 px-8">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-12">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-black text-white rounded-2xl flex items-center justify-center">
-              <Music size={24} />
+            <div className="w-12 h-12 rounded-2xl overflow-hidden shadow-lg">
+              <img 
+                src="https://upload.wikimedia.org/wikipedia/commons/thumb/c/ca/Saint_Paul_by_El_Greco_%28Prado%29.jpg/800px-Saint_Paul_by_El_Greco_%28Prado%29.jpg" 
+                alt="Saint Paul" 
+                className="w-full h-full object-cover"
+                referrerPolicy="no-referrer"
+              />
             </div>
             <div>
               <p className="font-serif font-bold text-2xl tracking-tighter text-black">SAPCYM</p>

@@ -12,7 +12,7 @@ import {
   Calendar
 } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
-import { supabase } from '../lib/supabase';
+import { supabase, uploadFile } from '../lib/supabase';
 import { FinancialReport } from '../types';
 import { format, parseISO } from 'date-fns';
 
@@ -64,9 +64,9 @@ export default function FinancialVault() {
     if (!confirm("Permanently delete this financial report?")) return;
     try {
       if (report.pdfUrl) {
-        const path = report.pdfUrl.split('/public/choir_files/')[1];
-        if (path) {
-          await supabase.storage.from('choir_files').remove([path]);
+        const filename = report.pdfUrl.split('/').pop()?.split('?')[0];
+        if (filename) {
+          await supabase.storage.from('ministry_files').remove([`reports/${report.year}/${filename}`]);
         }
       }
       await supabase.from('financial_reports').delete().eq('id', report.id);
@@ -171,16 +171,10 @@ function UploadReportModal({ onClose, uid }: { onClose: () => void, uid: string 
     setIsUploading(true);
 
     try {
-      const filePath = `reports/${year}/${month}_financial_report.pdf`;
-      const { data, error } = await supabase.storage
-        .from('choir_files')
-        .upload(filePath, file, { upsert: true });
-
-      if (error) throw error;
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('choir_files')
-        .getPublicUrl(filePath);
+      const sanitizedName = file.name.replace(/[^a-z0-9.]/gi, '_').toLowerCase();
+      const filePath = `reports/${year}/${month}_${sanitizedName}`;
+      
+      const { publicUrl } = await uploadFile('ministry_files', filePath, file);
 
       const { error: dbError } = await supabase.from('financial_reports').insert({
         year,
@@ -193,7 +187,7 @@ function UploadReportModal({ onClose, uid }: { onClose: () => void, uid: string 
       onClose();
     } catch (e) {
       console.error(e);
-      alert("Error uploading report");
+      alert(e instanceof Error ? e.message : "Error uploading report");
     } finally {
       setIsUploading(false);
     }

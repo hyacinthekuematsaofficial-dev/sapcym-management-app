@@ -58,8 +58,13 @@ export default function Sidebar() {
   const menu = (
     <div className="flex flex-col h-full">
       <div className="mb-12 px-2 flex items-center gap-3">
-        <div className="w-10 h-10 bg-black rounded-xl flex items-center justify-center text-white shrink-0">
-          <ShieldCheck size={24} />
+        <div className="w-10 h-10 rounded-xl overflow-hidden shadow-md shrink-0">
+          <img 
+            src="https://upload.wikimedia.org/wikipedia/commons/thumb/c/ca/Saint_Paul_by_El_Greco_%28Prado%29.jpg/800px-Saint_Paul_by_El_Greco_%28Prado%29.jpg" 
+            alt="Saint Paul" 
+            className="w-full h-full object-cover"
+            referrerPolicy="no-referrer"
+          />
         </div>
         <div>
           <h1 className="text-xl font-serif font-black tracking-tighter leading-[0.85] text-black">Saint Paul Catholic <br/> Young Movement</h1>

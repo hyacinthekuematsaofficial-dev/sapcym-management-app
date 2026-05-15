@@ -1,5 +1,5 @@
-@import "tailwindcss";
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&family=Playfair+Display:ital,wght@0,700;0,900;1,700&display=swap');
+@import "tailwindcss";
 
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
@@ -11,6 +11,14 @@
 @layer base {
   body {
     @apply font-sans text-brand-blue selection:bg-brand-blue selection:text-white;
+  }
+  
+  .font-bold:not(button):not(.btn), 
+  .font-semibold:not(button):not(.btn), 
+  .font-black:not(button):not(.btn), 
+  .font-extrabold:not(button):not(.btn), 
+  strong, b {
+    @apply text-blue-600;
   }
 }
 
