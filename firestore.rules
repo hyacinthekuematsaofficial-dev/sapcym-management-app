@@ -1,0 +1,186 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper Functions
+    function isSignedIn() { return request.auth != null; }
+    function isVerified() { return isSignedIn() && request.auth.token.email_verified == true; }
+    
+    function getUserData() {
+      return get(/databases/$(database)/documents/members/$(request.auth.uid)).data;
+    }
+
+    function isSuperAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == 'kuematsahy@gmail.com' ||
+        request.auth.token.email == 'hyacinthekuematsaofficial@gmail.com'
+      );
+    }
+
+    function isAdmin() {
+      return isSuperAdmin() || (isVerified() && getUserData().role == 'Admin');
+    }
+
+    function isExecutive() {
+      return isAdmin() || (isVerified() && getUserData().role == 'Executive');
+    }
+
+    function isMusicDirector() {
+      return isAdmin() || (isVerified() && getUserData().role == 'Music Director');
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+
+    // 1. Members Collection
+    match /members/{userId} {
+      function isValidMember(data) {
+        return data.fullName is string && data.fullName.size() > 0 && data.fullName.size() <= 100 &&
+               data.role in ['Admin', 'Executive', 'Music Director', 'Member'] &&
+               data.status is string && data.status.size() <= 50 &&
+               data.onboardingDate is timestamp &&
+               data.oldMember is bool &&
+               data.pendingApproval is bool;
+      }
+
+      allow read: if isVerified();
+      
+      allow create: if isVerified() && isOwner(userId) && 
+                      isValidMember(incoming()) && 
+                      incoming().role == 'Member' && 
+                      incoming().pendingApproval == true &&
+                      incoming().onboardingDate == request.time;
+      
+      allow update: if isVerified() && (
+        // Admin can update everything
+        (isAdmin() && isValidMember(incoming())) ||
+        // User can update their own non-sensitive fields
+        (isOwner(userId) && isValidMember(incoming()) && 
+         incoming().diff(existing()).affectedKeys().hasOnly(['fullName', 'avatarUrl'])
+        ) ||
+        // Executive can help approve/moderate
+        (isExecutive() && isValidMember(incoming()) && 
+         incoming().diff(existing()).affectedKeys().hasOnly(['status', 'pendingApproval', 'role', 'voiceSection'])
+        )
+      );
+
+      allow delete: if isAdmin();
+
+      // Private Data Subcollection
+      match /private/data {
+        function isValidPrivateData(data) {
+          return data.email is string && data.email.size() <= 100 &&
+                 (data.phone == null || data.phone is string) &&
+                 (data.address == null || data.address is string) &&
+                 (data.profession == null || data.profession is string);
+        }
+
+        allow read: if isOwner(userId) || isAdmin();
+        allow create, update: if (isOwner(userId) || isAdmin()) && isValidPrivateData(incoming());
+        allow delete: if isAdmin();
+      }
+    }
+
+    // 2. Music Library
+    match /songs/{songId} {
+      function isValidSong(data) {
+        return data.title is string && data.title.size() > 0 && data.title.size() <= 200 &&
+               data.uploadDate == request.time;
+      }
+
+      allow read: if isVerified();
+      allow create: if isMusicDirector() && isValidId(songId) && isValidSong(incoming());
+      allow update: if isMusicDirector() && isValidSong(incoming()) && 
+                       incoming().uploadDate == existing().uploadDate;
+      allow delete: if isAdmin() || isMusicDirector();
+    }
+
+    // 3. Attendance Tracking
+    match /attendance/{recordId} {
+      function isValidAttendance(data) {
+        return data.date is timestamp && 
+               data.memberId is string && 
+               data.status in ['present', 'absent'] &&
+               exists(/databases/$(database)/documents/members/$(data.memberId));
+      }
+
+      allow read: if isVerified();
+      
+      allow create: if isMusicDirector() && isValidId(recordId) && isValidAttendance(incoming()) &&
+                       incoming().date == request.time; // Only current attendance
+
+      allow update: if (isAdmin() || (isMusicDirector() && incoming().date >= request.time - duration.value(24, 'h'))) &&
+                       isValidAttendance(incoming());
+
+      allow delete: if isAdmin();
+    }
+
+    // 4. Chat System
+    match /chat/{messageId} {
+      function isValidMessage(data) {
+        return data.content is string && data.content.size() > 0 && data.content.size() <= 5000 &&
+               data.authorId == request.auth.uid &&
+               data.timestamp == request.time &&
+               (data.replyToId == null || exists(/databases/$(database)/documents/chat/$(data.replyToId)));
+      }
+
+      allow read: if isVerified();
+      allow create: if isVerified() && isValidId(messageId) && isValidMessage(incoming());
+      // No updates for chat messages (immutability rule)
+      allow delete: if isAdmin() || (isVerified() && existing().authorId == request.auth.uid);
+    }
+
+    // 5. Ministry Announcements
+    match /announcements/{annId} {
+      function isValidAnnouncement(data) {
+        return data.title is string && data.title.size() > 0 && data.title.size() <= 200 &&
+               data.content is string && data.content.size() > 0 &&
+               data.timestamp == request.time;
+      }
+
+      allow read: if isVerified();
+      allow create: if isExecutive() && isValidId(annId) && isValidAnnouncement(incoming());
+      allow update: if isExecutive() && isValidAnnouncement(incoming());
+      allow delete: if isAdmin() || isExecutive();
+    }
+
+    // 6. Financial Documents
+    match /financial_reports/{reportId} {
+      function isValidReport(data) {
+        return data.year is int && data.month is int &&
+               data.pdfUrl is string && data.pdfUrl.size() > 0;
+      }
+
+      allow read: if isExecutive();
+      allow create: if isExecutive() && isValidId(reportId) && isValidReport(incoming());
+      allow update: if isExecutive() && isValidReport(incoming());
+      allow delete: if isAdmin();
+    }
+
+    // 7. Gallery
+    match /gallery/{photoId} {
+      function isValidPhoto(data) {
+        return data.url is string && data.url.size() > 0 &&
+               data.timestamp == request.time;
+      }
+
+      allow read: if isVerified();
+      allow create: if isExecutive() && isValidId(photoId) && isValidPhoto(incoming());
+      allow update: if isExecutive() && isValidPhoto(incoming());
+      allow delete: if isAdmin() || isExecutive();
+    }
+  }
+}

@@ -1,0 +1,51 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isSignedIn() { return request.auth != null; }
+    function isVerified() { return isSignedIn() && request.auth.token.email_verified == true; }
+    
+    function getUserData() {
+      return firestore.get(/databases/(default)/documents/members/$(request.auth.uid)).data;
+    }
+
+    function isSuperAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == 'kuematsahy@gmail.com' ||
+        request.auth.token.email == 'hyacinthekuematsaofficial@gmail.com'
+      );
+    }
+
+    function isAdmin() {
+      return isSuperAdmin() || (isVerified() && getUserData().role == 'Admin');
+    }
+
+    function isExecutive() {
+      return isAdmin() || (isVerified() && getUserData().role == 'Executive');
+    }
+
+    function isMusicDirector() {
+      return isAdmin() || (isVerified() && getUserData().role == 'Music Director');
+    }
+
+    match /choir_files {
+      match /songs/{songId}/{fileName} {
+        allow read: if isVerified();
+        allow write: if isMusicDirector();
+      }
+
+      match /gallery/{photoId} {
+        allow read: if isVerified();
+        allow write: if isExecutive();
+      }
+
+      match /reports/{year}/{month}_{fileName} {
+        allow read, write: if isExecutive();
+      }
+
+      match /avatars/{userId} {
+        allow read: if isVerified();
+        allow write: if isSignedIn() && request.auth.uid == userId;
+      }
+    }
+  }
+}

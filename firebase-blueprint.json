@@ -1,0 +1,145 @@
+{
+  "entities": {
+    "Member": {
+      "title": "Ministry Member",
+      "description": "Public profile information for a member.",
+      "type": "object",
+      "properties": {
+        "fullName": { "type": "string", "description": "Full name of the member" },
+        "role": { "type": "string", "enum": ["Admin", "Executive", "Music Director", "Member"], "description": "System role" },
+        "voiceSection": { "type": "string", "enum": ["Soprano", "Alto", "Ténor", "Basse"], "description": "Voice section" },
+        "status": { "type": "string", "description": "Active, Recrue Stagiaire, etc." },
+        "onboardingDate": { "type": "string", "format": "date-time", "description": "When they joined/registered" },
+        "oldMember": { "type": "boolean", "description": "If they were already a member" },
+        "pendingApproval": { "type": "boolean", "description": "True if waiting for admin validation" },
+        "avatarUrl": { "type": "string" }
+      },
+      "required": ["fullName", "role", "status", "onboardingDate"]
+    },
+    "MemberPrivate": {
+      "title": "Private Member Data",
+      "description": "Sensitive PII for a member.",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "format": "email" },
+        "phone": { "type": "string" },
+        "address": { "type": "string" },
+        "profession": { "type": "string" }
+      },
+      "required": ["email"]
+    },
+    "Song": {
+      "title": "Music Resource",
+      "description": "Sheet music, lyrics, and audio recordings.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "composer": { "type": "string" },
+        "musicalKey": { "type": "string" },
+        "uploadDate": { "type": "string", "format": "date-time" },
+        "scoreUrl": { "type": "string", "description": "PDF score file URL" },
+        "lyricsUrl": { "type": "string", "description": "Image lyrics file URL" },
+        "audioUrl": { "type": "string", "description": "MP3 audio file URL" },
+        "uploadedBy": { "type": "string" }
+      },
+      "required": ["title", "uploadDate"]
+    },
+    "AttendanceRecord": {
+      "title": "Attendance Record",
+      "description": "Presence mark for a member on a specific date.",
+      "type": "object",
+      "properties": {
+        "date": { "type": "string", "format": "date-time" },
+        "memberId": { "type": "string" },
+        "status": { "type": "string", "enum": ["present", "absent"] },
+        "markedBy": { "type": "string" }
+      },
+      "required": ["date", "memberId", "status"]
+    },
+    "ChatMessage": {
+      "title": "Chat Message",
+      "description": "Real-time communication message.",
+      "type": "object",
+      "properties": {
+        "content": { "type": "string" },
+        "authorId": { "type": "string" },
+        "authorName": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "replyToId": { "type": "string", "description": "ID of the message being replied to" },
+        "replyToContent": { "type": "string", "description": "Preview text of the replied message" }
+      },
+      "required": ["content", "authorId", "timestamp"]
+    },
+    "Announcement": {
+      "title": "Ministry Announcement",
+      "description": "Official update for the ministry.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "authorName": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "content", "timestamp"]
+    },
+    "FinancialReport": {
+      "title": "Financial Report",
+      "description": "Monthly financial PDF report.",
+      "type": "object",
+      "properties": {
+        "year": { "type": "number" },
+        "month": { "type": "number" },
+        "pdfUrl": { "type": "string" },
+        "uploadDate": { "type": "string", "format": "date-time" },
+        "uploadedBy": { "type": "string" }
+      },
+      "required": ["year", "month", "pdfUrl"]
+    },
+    "GalleryPhoto": {
+      "title": "Gallery Photo",
+      "description": "Photo from ministry activities.",
+      "type": "object",
+      "properties": {
+        "url": { "type": "string" },
+        "caption": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "uploadedBy": { "type": "string" }
+      },
+      "required": ["url", "timestamp"]
+    }
+  },
+  "firestore": {
+    "members": {
+      "schema": "Member",
+      "description": "Public member directory"
+    },
+    "members/{memberId}/private/data": {
+      "schema": "MemberPrivate",
+      "description": "Private sensitive data for a member"
+    },
+    "songs": {
+      "schema": "Song",
+      "description": "Music library"
+    },
+    "attendance": {
+      "schema": "AttendanceRecord",
+      "description": "Attendance tracking"
+    },
+    "chat": {
+      "schema": "ChatMessage",
+      "description": "Global chat messages"
+    },
+    "announcements": {
+      "schema": "Announcement",
+      "description": "Ministry bulletins"
+    },
+    "financial_reports": {
+      "schema": "FinancialReport",
+      "description": "Restricted financial documents"
+    },
+    "gallery": {
+      "schema": "GalleryPhoto",
+      "description": "Activity photos"
+    }
+  }
+}
