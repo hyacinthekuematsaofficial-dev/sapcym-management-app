@@ -71,7 +71,7 @@ export default function LandingPage() {
               <span className="italic opacity-50">of Worship.</span>
             </h1>
             <p className="text-xl text-brand-blue/60 leading-relaxed max-w-xl">
-              Saint Peter and Paul Anglophone Parish situated at Simbock. A dedicated space for spiritual growth, choral excellence, and fraternal unity.
+              Saint Paul Catholic Young Movement (SAPCYM). A dedicated space for spiritual growth, choral excellence, and fraternal unity.
             </p>
             <div className="flex flex-wrap gap-4 pt-4">
               <button 

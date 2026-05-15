@@ -62,8 +62,8 @@ export default function Sidebar() {
           <ShieldCheck size={24} />
         </div>
         <div>
-          <h1 className="text-xl font-serif font-black tracking-tighter leading-[0.85] text-brand-blue">St. Peter & Paul <br/> Simbock</h1>
-          <p className="text-[10px] uppercase font-bold tracking-widest text-brand-blue/30 mt-1">Ministry Portal</p>
+          <h1 className="text-xl font-serif font-black tracking-tighter leading-[0.85] text-brand-blue">Saint Paul Catholic <br/> Young Movement</h1>
+          <p className="text-[10px] uppercase font-bold tracking-widest text-brand-blue/30 mt-1">SAPCYM Portal</p>
         </div>
       </div>
 

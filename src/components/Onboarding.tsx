@@ -89,10 +89,10 @@ export default function Onboarding() {
                   <UserPlus size={40} />
                 </div>
                 <h1 className="text-5xl font-serif font-black tracking-tighter text-brand-blue italic leading-none">
-                  St. Peter & Paul <br/> Simbock
+                  Saint Paul Catholic <br/> Young Movement
                 </h1>
                 <p className="text-lg text-brand-blue/50 font-sans leading-relaxed">
-                  Join the ministry of Saint Peter and Paul Anglophone Parish situated at Simbock. 
+                  Join the ministry of SAPCYM. Step forward to serve the Almighty with your voice and dedication. 
                 </p>
               </div>
 
@@ -220,7 +220,7 @@ export default function Onboarding() {
                   Record Saved. <br /> Pending Approval.
                 </h1>
                 <p className="text-lg text-brand-blue/50 max-w-sm mx-auto leading-relaxed">
-                  Your registration for the Saint Peter and Paul Anglophone Parish (Simbock) has been sent to the Executive Committee. 
+                  Your registration for SAPCYM (Saint Paul Catholic Young Movement) has been sent to the Executive Committee. 
                 </p>
               </div>
 

@@ -237,6 +237,7 @@ export default function MemberDirectory() {
                     member={m} 
                     isAdmin={isAdmin} 
                     onDecline={handleDecline}
+                    onUpdate={handleUpdate}
                   />
                 ))}
               </tbody>
@@ -506,12 +507,26 @@ function MemberCard({
 function MemberRow({ 
   member, 
   isAdmin, 
-  onDecline 
+  onDecline,
+  onUpdate
 }: { 
   member: Member, 
   isAdmin: boolean,
-  onDecline: (uid: string) => void
+  onDecline: (uid: string) => void,
+  onUpdate: (uid: string, data: any) => void
 }) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [formData, setFormData] = useState({ ...member });
+
+  const handleUpdate = async () => {
+    await onUpdate(member.uid, {
+      fullName: formData.fullName,
+      role: formData.role,
+      voiceSection: formData.voiceSection
+    });
+    setIsEditing(false);
+  };
+
   return (
     <tr className="hover:bg-gray-50 transition-colors group">
       <td className="p-6">
@@ -520,18 +535,52 @@ function MemberRow({
             {member.avatarUrl ? <img src={member.avatarUrl} className="w-full h-full object-cover" /> : <UserIcon size={20} className="w-full h-full p-2.5 text-gray-300" />}
           </div>
           <div>
-            <p className="font-bold text-sm italic">{member.fullName}</p>
+            {isEditing ? (
+              <input 
+                className="font-bold text-sm bg-white border border-gray-100 rounded px-2"
+                value={formData.fullName}
+                onChange={e => setFormData({...formData, fullName: e.target.value})}
+              />
+            ) : (
+              <p className="font-bold text-sm italic">{member.fullName}</p>
+            )}
             <p className="text-[10px] text-gray-400 font-mono">{member.uid.slice(0, 8)}</p>
           </div>
         </div>
       </td>
       <td className="p-6">
-        <span className={`text-[10px] uppercase font-bold tracking-widest px-2 py-0.5 rounded-md ${member.role === 'Admin' ? 'bg-black text-white' : 'bg-gray-100 text-gray-500'}`}>
-          {member.role}
-        </span>
+        {isEditing ? (
+          <select 
+            className="text-[10px] uppercase font-bold p-1 bg-white border rounded"
+            value={formData.role}
+            onChange={e => setFormData({...formData, role: e.target.value as UserRole})}
+          >
+            <option value="Admin">Admin</option>
+            <option value="Executive">Executive</option>
+            <option value="Music Director">Music Director</option>
+            <option value="Member">Member</option>
+          </select>
+        ) : (
+          <span className={`text-[10px] uppercase font-bold tracking-widest px-2 py-0.5 rounded-md ${member.role === 'Admin' ? 'bg-black text-white' : 'bg-gray-100 text-gray-500'}`}>
+            {member.role}
+          </span>
+        )}
       </td>
       <td className="p-6">
-        <p className="text-sm font-bold opacity-60 italic">{member.voiceSection}</p>
+        {isEditing ? (
+          <select 
+            className="text-[10px] uppercase font-bold p-1 bg-white border rounded"
+            value={formData.voiceSection}
+            onChange={e => setFormData({...formData, voiceSection: e.target.value as VoiceSection})}
+          >
+            <option value="Soprano">Soprano</option>
+            <option value="Alto">Alto</option>
+            <option value="Ténor">Ténor</option>
+            <option value="Basse">Basse</option>
+          </select>
+        ) : (
+          <p className="text-sm font-bold opacity-60 italic">{member.voiceSection}</p>
+        )}
       </td>
       <td className="p-6">
         <p className="text-sm text-gray-400 font-sans">{format(member.onboardingDate?.toDate() || new Date(), 'MMM yy')}</p>
@@ -539,8 +588,17 @@ function MemberRow({
       {isAdmin && (
         <td className="p-6">
           <div className="flex gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
-            <Edit3 size={16} className="text-gray-400 hover:text-black cursor-pointer" />
-            <Trash2 size={16} className="text-red-300 hover:text-red-600 cursor-pointer" onClick={() => onDecline(member.uid)} />
+            {isEditing ? (
+              <>
+                <button onClick={handleUpdate} className="text-xs font-bold text-green-600">Save</button>
+                <button onClick={() => setIsEditing(false)} className="text-xs font-bold text-gray-400">Cancel</button>
+              </>
+            ) : (
+              <>
+                <Edit3 size={16} className="text-gray-400 hover:text-black cursor-pointer" onClick={() => setIsEditing(true)} />
+                <Trash2 size={16} className="text-red-300 hover:text-red-600 cursor-pointer" onClick={() => onDecline(member.uid)} />
+              </>
+            )}
           </div>
         </td>
       )}

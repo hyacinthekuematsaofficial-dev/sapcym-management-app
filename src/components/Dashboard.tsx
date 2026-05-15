@@ -114,7 +114,7 @@ export default function Dashboard() {
             <span className="italic opacity-30">{member?.gender === 'Female' ? 'Sister' : 'Brother'} {member?.fullName.split(' ')[0]}.</span>
           </h1>
           <p className="text-base lg:text-lg text-brand-blue/40 max-w-xl font-sans font-medium">
-             Serving the Saint Peter and Paul Anglophone Parish situated at Simbock. Today is {format(new Date(), 'EEEE, MMMM dd')}.
+             Official portal for the Saint Paul Catholic Young Movement (SAPCYM). Today is {format(new Date(), 'EEEE, MMMM dd')}.
           </p>
         </div>
         
@@ -141,7 +141,7 @@ export default function Dashboard() {
             </div>
             <div className="space-y-1">
               <h2 className="text-2xl font-serif font-bold text-orange-900 italic tracking-tight">Probationary Period</h2>
-              <p className="text-orange-700/60 font-sans text-sm font-medium">Your account is pending executive validation.</p>
+              <p className="text-orange-700/60 font-sans text-sm font-medium">Your account with SAPCYM is pending executive validation.</p>
             </div>
           </div>
           <div className="bg-white/60 backdrop-blur px-8 py-5 rounded-3xl border border-orange-100 flex flex-col items-center">
@@ -167,7 +167,7 @@ export default function Dashboard() {
             </h3>
             <div className="flex items-center justify-center md:justify-start gap-2 text-brand-blue/50 text-sm font-medium">
               <MapPin size={16} />
-              Behind the church at Simbock
+              SAPCYM Rehearsal Hall, Simbock
             </div>
           </div>
         </div>

@@ -23,8 +23,8 @@ function AppContent() {
         <div className="flex flex-col items-center gap-6">
           <div className="w-16 h-16 border-4 border-brand-blue/10 border-t-brand-blue rounded-full animate-spin" />
           <div className="text-center space-y-1">
-            <p className="font-serif italic text-2xl font-bold text-brand-blue">Saint Peter & Paul Simbock</p>
-            <p className="font-mono text-[10px] uppercase font-bold tracking-[0.3em] text-brand-blue/40">Initializing Ministry Portal</p>
+            <p className="font-serif italic text-2xl font-bold text-brand-blue">Saint Paul Catholic Young Movement</p>
+            <p className="font-mono text-[10px] uppercase font-bold tracking-[0.3em] text-brand-blue/40">Initializing SAPCYM Portal</p>
           </div>
         </div>
       </div>
