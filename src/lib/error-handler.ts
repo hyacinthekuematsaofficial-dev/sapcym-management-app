@@ -18,19 +18,17 @@ export interface FirestoreErrorInfo {
   }
 }
 
-import { auth } from './firebase';
+import { supabase } from './supabase';
 
 export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
-  const errInfo: FirestoreErrorInfo = {
+  // We'll refactor this to handle Supabase errors but keep the signature for compatibility
+  const user = supabase.auth.getUser(); // This is async but for logging purposes we can keep it simple
+  
+  const errInfo = {
     error: error instanceof Error ? error.message : String(error),
-    authInfo: {
-      userId: auth.currentUser?.uid,
-      email: auth.currentUser?.email,
-      emailVerified: auth.currentUser?.emailVerified,
-    },
     operationType,
     path
   };
-  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  console.error('Supabase/Data Error: ', JSON.stringify(errInfo));
   throw new Error(JSON.stringify(errInfo));
 }

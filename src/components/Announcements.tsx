@@ -11,10 +11,9 @@ import {
   FileText
 } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
-import { db } from '../lib/firebase';
-import { collection, query, orderBy, onSnapshot, addDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
+import { supabase } from '../lib/supabase';
 import { Announcement } from '../types';
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 
 export default function Announcements() {
   const { isExecutive, isAdmin, member } = useAuth();
@@ -22,18 +21,51 @@ export default function Announcements() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
 
+  const fetchAnnouncements = async () => {
+    const { data, error } = await supabase
+      .from('announcements')
+      .select('*')
+      .order('timestamp', { ascending: false });
+
+    if (data) {
+      setAnnouncements(data.map(ann => ({
+        id: ann.id,
+        title: ann.title,
+        content: ann.content,
+        authorName: ann.author_name,
+        timestamp: ann.timestamp
+      } as Announcement)));
+    }
+    setLoading(false);
+  };
+
   useEffect(() => {
-    const q = query(collection(db, 'announcements'), orderBy('timestamp', 'desc'));
-    const unsub = onSnapshot(q, (snapshot) => {
-      setAnnouncements(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Announcement)));
-      setLoading(false);
-    });
-    return unsub;
+    fetchAnnouncements();
+
+    // Subscribe to changes
+    const channel = supabase
+      .channel('public:announcements')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'announcements' }, payload => {
+        fetchAnnouncements();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const handleDelete = async (id: string) => {
     if (!confirm("Delete this announcement?")) return;
-    await deleteDoc(doc(db, 'announcements', id));
+    const { error } = await supabase
+      .from('announcements')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      console.error(error);
+      alert("Error deleting announcement.");
+    }
   };
 
   if (loading) return <div className="p-8 animate-pulse text-gray-400">Loading bulletins...</div>;
@@ -75,7 +107,7 @@ export default function Announcements() {
                 <div className="md:w-48 shrink-0">
                   <div className="flex items-center gap-2 text-[11px] font-mono font-bold text-gray-400 uppercase tracking-widest mb-4">
                     <Calendar size={14} />
-                    {format(ann.timestamp?.toDate() || new Date(), 'MMM dd, yyyy')}
+                    {format(typeof ann.timestamp === 'string' ? parseISO(ann.timestamp) : ann.timestamp || new Date(), 'MMM dd, yyyy')}
                   </div>
                   <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-2xl border border-gray-100">
                     <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center border border-gray-200">
@@ -129,15 +161,20 @@ function AnnouncementModal({ onClose, authorName }: { onClose: () => void, autho
     if (!title || !content) return;
     setIsSubmitting(true);
     try {
-      await addDoc(collection(db, 'announcements'), {
-        title,
-        content,
-        authorName,
-        timestamp: serverTimestamp()
-      });
+      const { error } = await supabase
+        .from('announcements')
+        .insert({
+          title,
+          content,
+          author_name: authorName,
+          timestamp: new Date().toISOString()
+        });
+
+      if (error) throw error;
       onClose();
     } catch (e) {
       console.error(e);
+      alert("Error posting announcement.");
     } finally {
       setIsSubmitting(false);
     }

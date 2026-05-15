@@ -11,10 +11,9 @@ import {
   MessageSquareOff
 } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
-import { db } from '../lib/firebase';
-import { collection, query, orderBy, limit, onSnapshot, addDoc, serverTimestamp } from 'firebase/firestore';
+import { supabase } from '../lib/supabase';
 import { ChatMessage } from '../types';
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 
 export default function AdvancedChat() {
   const { user, member } = useAuth();
@@ -25,12 +24,51 @@ export default function AdvancedChat() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const q = query(collection(db, 'chat'), orderBy('timestamp', 'asc'), limit(100));
-    const unsub = onSnapshot(q, (snapshot) => {
-      setMessages(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ChatMessage)));
+    const fetchMessages = async () => {
+      const { data, error } = await supabase
+        .from('chat_messages')
+        .select('*')
+        .order('timestamp', { ascending: true })
+        .limit(100);
+
+      if (data) {
+        setMessages(data.map(m => ({
+          id: m.id,
+          content: m.content,
+          authorId: m.author_id,
+          authorName: m.author_name,
+          authorAvatar: m.author_avatar,
+          timestamp: m.timestamp,
+          replyToId: m.reply_to_id,
+          replyToContent: m.reply_to_content
+        } as ChatMessage)));
+      }
       setLoading(false);
-    });
-    return unsub;
+    };
+
+    fetchMessages();
+
+    // Subscribe to changes
+    const channel = supabase
+      .channel('public:chat_messages')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages' }, payload => {
+        const m = payload.new;
+        setMessages(prev => [...prev, {
+          id: m.id,
+          content: m.content,
+          authorId: m.author_id,
+          authorName: m.author_name,
+          authorAvatar: m.author_avatar,
+          timestamp: m.timestamp,
+          replyToId: m.reply_to_id,
+          replyToContent: m.reply_to_content
+        } as ChatMessage]);
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   useEffect(() => {
@@ -44,14 +82,13 @@ export default function AdvancedChat() {
     if (!newMessage.trim() || !user || !member) return;
 
     try {
-      await addDoc(collection(db, 'chat'), {
+      await supabase.from('chat_messages').insert({
         content: newMessage,
-        authorId: user.uid,
-        authorName: member.fullName,
-        authorAvatar: user.photoURL,
-        timestamp: serverTimestamp(),
-        replyToId: replyingTo?.id || null,
-        replyToContent: replyingTo?.content || null
+        author_id: user.id,
+        author_name: member.fullName,
+        author_avatar: user.user_metadata?.avatar_url || null,
+        reply_to_id: replyingTo?.id || null,
+        reply_to_content: replyingTo?.content || null
       });
       setNewMessage('');
       setReplyingTo(null);
@@ -86,7 +123,7 @@ export default function AdvancedChat() {
             <ChatBubble 
               key={msg.id} 
               msg={msg} 
-              isOwn={msg.authorId === user?.uid} 
+              isOwn={msg.authorId === user?.id} 
               onReply={() => setReplyingTo(msg)}
             />
           )) : (
@@ -187,7 +224,7 @@ function ChatBubble({ msg, isOwn, onReply }: { msg: ChatMessage, isOwn: boolean,
           </div>
           
           <p className={`text-[9px] font-mono text-gray-400 font-bold uppercase tracking-widest pt-1 px-2 ${isOwn ? 'text-right' : ''}`}>
-            {format(msg.timestamp?.toDate() || new Date(), 'HH:mm • MMM dd')}
+            {format(typeof msg.timestamp === 'string' ? parseISO(msg.timestamp) : new Date(), 'HH:mm • MMM dd')}
           </p>
         </div>
       </div>

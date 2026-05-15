@@ -9,14 +9,11 @@ export interface Member {
   gender: Gender;
   voiceSection?: VoiceSection;
   status: string;
-  onboardingDate: any; // Firestore Timestamp
+  onboardingDate: any; // String in Supabase
   oldMember: boolean;
   pendingApproval: boolean;
   avatarUrl?: string;
-}
-
-export interface MemberPrivate {
-  email: string;
+  email?: string;
   phone?: string;
   address?: string;
   profession?: string;

@@ -10,9 +10,7 @@ import {
   FileText
 } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
-import { db, storage } from '../lib/firebase';
-import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
-import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import { supabase } from '../lib/supabase';
 import ReactMarkdown from 'react-markdown';
 
 const DEFAULT_CONTENT = `
@@ -40,24 +38,46 @@ export default function InternalRegulations() {
   const [editedPdfUrl, setEditedPdfUrl] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
+  const [isUploading, setIsUploading] = useState(false);
 
   const [displayMode, setDisplayMode] = useState<'text' | 'pdf'>('text');
 
   useEffect(() => {
-    const unsub = onSnapshot(doc(db, 'settings', 'regulations'), (docSnap) => {
-      if (docSnap.exists()) {
-        const data = docSnap.data();
+    const fetchRegulations = async () => {
+      const { data, error } = await supabase
+        .from('settings')
+        .select('*')
+        .eq('key', 'regulations')
+        .single();
+
+      if (data) {
         setContent(data.content || DEFAULT_CONTENT);
-        setPdfUrl(data.pdfUrl || '');
-        if (data.pdfUrl) setDisplayMode('pdf');
+        setPdfUrl(data.pdf_url || '');
+        if (data.pdf_url) setDisplayMode('pdf');
       } else {
         setContent(DEFAULT_CONTENT);
         setPdfUrl('');
       }
       setLoading(false);
-    });
-    return unsub;
+    };
+
+    fetchRegulations();
+
+    // Subscribe to changes
+    const channel = supabase
+      .channel('public:settings:key=eq.regulations')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'settings', filter: 'key=eq.regulations' }, payload => {
+        if (payload.new) {
+          const data = payload.new as any;
+          setContent(data.content || DEFAULT_CONTENT);
+          setPdfUrl(data.pdf_url || '');
+        }
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -69,37 +89,47 @@ export default function InternalRegulations() {
       return;
     }
 
-    const storageRef = ref(storage, `settings/regulations/official_document.pdf`);
-    const uploadTask = uploadBytesResumable(storageRef, file);
+    setIsUploading(true);
+    const fileExt = file.name.split('.').pop();
+    const fileName = `official_document_${Date.now()}.${fileExt}`;
+    const filePath = `settings/${fileName}`;
 
-    uploadTask.on('state_changed', 
-      (snapshot) => {
-        const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-        setUploadProgress(progress);
-      },
-      (error) => {
-        console.error("Upload error:", error);
-        alert("Upload failed. Make sure Firebase Storage is enabled.");
-      },
-      async () => {
-        const url = await getDownloadURL(uploadTask.snapshot.ref);
-        setEditedPdfUrl(url);
-        setUploadProgress(0);
-      }
-    );
+    const { data, error } = await supabase.storage
+      .from('choir_files')
+      .upload(filePath, file);
+
+    if (error) {
+      console.error("Upload error:", error);
+      alert("Upload failed. Make sure 'choir_files' bucket exists.");
+      setIsUploading(false);
+      return;
+    }
+
+    const { data: { publicUrl } } = supabase.storage
+      .from('choir_files')
+      .getPublicUrl(filePath);
+
+    setEditedPdfUrl(publicUrl);
+    setIsUploading(false);
   };
 
   const handleSave = async () => {
     setSaving(true);
     try {
-      await setDoc(doc(db, 'settings', 'regulations'), {
-        content: editedContent,
-        pdfUrl: editedPdfUrl,
-        updatedAt: new Date()
-      });
+      const { error } = await supabase
+        .from('settings')
+        .upsert({
+          key: 'regulations',
+          content: editedContent,
+          pdf_url: editedPdfUrl,
+          updated_at: new Date().toISOString()
+        });
+
+      if (error) throw error;
       setIsEditing(false);
     } catch (e) {
       console.error(e);
+      alert("Error saving regulations.");
     } finally {
       setSaving(false);
     }
@@ -157,15 +187,15 @@ export default function InternalRegulations() {
                     onChange={handleFileUpload}
                     className="absolute inset-0 opacity-0 cursor-pointer z-10"
                   />
-                  <div className={`p-4 bg-gray-50 border border-gray-100 rounded-2xl flex items-center gap-4 transition-all ${uploadProgress > 0 ? 'border-brand-blue' : ''}`}>
-                    {uploadProgress > 0 ? (
+                  <div className={`p-4 bg-gray-50 border border-gray-100 rounded-2xl flex items-center gap-4 transition-all ${isUploading ? 'border-brand-blue' : ''}`}>
+                    {isUploading ? (
                       <Loader2 className="animate-spin text-brand-blue" size={20} />
                     ) : (
                       <FileText className="text-gray-400" size={20} />
                     )}
                     <div className="flex-1">
                       <p className="text-xs font-bold text-gray-500">
-                        {uploadProgress > 0 ? `Uploading: ${Math.round(uploadProgress)}%` : 'Choose PDF Document'}
+                        {isUploading ? `Uploading...` : 'Choose PDF Document'}
                       </p>
                     </div>
                   </div>

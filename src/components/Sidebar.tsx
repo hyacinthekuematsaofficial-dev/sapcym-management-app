@@ -17,7 +17,7 @@ import {
   X
 } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
-import { auth } from '../lib/firebase';
+import { supabase } from '../lib/supabase';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface SidebarItemProps {
@@ -32,13 +32,13 @@ const SidebarItem: React.FC<SidebarItemProps> = ({ to, icon, label, badge }) => 
     to={to}
     className={({ isActive }) => `
       flex items-center gap-4 px-6 py-4 rounded-2xl transition-all duration-300 group relative
-      ${isActive ? 'bg-brand-blue text-white shadow-lg translate-x-2' : 'hover:bg-gray-100 text-gray-500 hover:text-brand-blue'}
+      ${isActive ? 'bg-black text-white shadow-lg translate-x-2' : 'hover:bg-gray-100 text-gray-500 hover:text-black'}
     `}
   >
     <span className="shrink-0">{icon}</span>
     <span className="font-bold tracking-tight font-sans text-sm">{label}</span>
     {badge && (
-      <span className="ml-auto bg-brand-blue text-white text-[10px] px-2 py-0.5 rounded-full font-bold">
+      <span className="ml-auto bg-black text-white text-[10px] px-2 py-0.5 rounded-full font-bold">
         {badge}
       </span>
     )}
@@ -50,20 +50,20 @@ export default function Sidebar() {
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
 
-  const handleLogout = () => {
-    auth.signOut();
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
     navigate('/');
   };
 
   const menu = (
     <div className="flex flex-col h-full">
       <div className="mb-12 px-2 flex items-center gap-3">
-        <div className="w-10 h-10 bg-brand-blue rounded-xl flex items-center justify-center text-white shrink-0">
+        <div className="w-10 h-10 bg-black rounded-xl flex items-center justify-center text-white shrink-0">
           <ShieldCheck size={24} />
         </div>
         <div>
-          <h1 className="text-xl font-serif font-black tracking-tighter leading-[0.85] text-brand-blue">Saint Paul Catholic <br/> Young Movement</h1>
-          <p className="text-[10px] uppercase font-bold tracking-widest text-brand-blue/30 mt-1">SAPCYM Portal</p>
+          <h1 className="text-xl font-serif font-black tracking-tighter leading-[0.85] text-black">Saint Paul Catholic <br/> Young Movement</h1>
+          <p className="text-[10px] uppercase font-bold tracking-widest text-gray-400 mt-1">SAPCYM Portal</p>
         </div>
       </div>
 
@@ -144,7 +144,7 @@ export default function Sidebar() {
       <div className="lg:hidden fixed top-4 left-4 z-50">
         <button 
           onClick={() => setIsOpen(!isOpen)}
-          className="p-3 bg-brand-blue text-white rounded-2xl shadow-xl hover:scale-105 active:scale-95 transition-all"
+          className="p-3 bg-black text-white rounded-2xl shadow-xl hover:scale-105 active:scale-95 transition-all"
         >
           {isOpen ? <X size={24} /> : <Menu size={24} />}
         </button>

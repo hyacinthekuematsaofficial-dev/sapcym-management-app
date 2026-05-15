@@ -9,44 +9,90 @@ import {
   ShieldCheck,
   Users
 } from 'lucide-react';
-import { db, signInWithGoogle } from '../lib/firebase';
-import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
+import { supabase } from '../lib/supabase';
 import { Announcement, GalleryPhoto } from '../types';
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 
 export default function LandingPage() {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [photos, setPhotos] = useState<GalleryPhoto[]>([]);
 
+  const handleSignIn = async () => {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: window.location.origin
+      }
+    });
+    if (error) console.error('Error signing in:', error.message);
+  };
+
   useEffect(() => {
-    const annQuery = query(collection(db, 'announcements'), orderBy('timestamp', 'desc'), limit(3));
-    const unsubAnn = onSnapshot(annQuery, (snap) => {
-      setAnnouncements(snap.docs.map(d => ({ id: d.id, ...d.data() } as Announcement)));
-    });
+    const fetchData = async () => {
+      const { data: annData } = await supabase
+        .from('announcements')
+        .select('*')
+        .order('timestamp', { ascending: false })
+        .limit(3);
+      
+      if (annData) {
+        setAnnouncements(annData.map(d => ({
+          id: d.id,
+          title: d.title,
+          content: d.content,
+          authorName: d.author_name,
+          timestamp: d.timestamp
+        } as Announcement)));
+      }
 
-    const photoQuery = query(collection(db, 'gallery'), orderBy('timestamp', 'desc'), limit(4));
-    const unsubPhoto = onSnapshot(photoQuery, (snap) => {
-      setPhotos(snap.docs.map(d => ({ id: d.id, ...d.data() } as GalleryPhoto)));
-    });
+      const { data: photoData } = await supabase
+        .from('gallery_photos')
+        .select('*')
+        .order('upload_date', { ascending: false })
+        .limit(4);
 
-    return () => { unsubAnn(); unsubPhoto(); };
+      if (photoData) {
+        setPhotos(photoData.map(d => ({
+          id: d.id,
+          url: d.url,
+          caption: d.caption,
+          timestamp: d.upload_date,
+          uploadedBy: d.uploaded_by
+        } as GalleryPhoto)));
+      }
+    };
+
+    fetchData();
+
+    const annChannel = supabase.channel('ann_landing')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'announcements' }, fetchData)
+      .subscribe();
+
+    const photoChannel = supabase.channel('photo_landing')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'gallery_photos' }, fetchData)
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(annChannel);
+      supabase.removeChannel(photoChannel);
+    };
   }, []);
 
   return (
-    <div className="min-h-screen bg-[#F5F5F3] font-sans selection:bg-brand-blue selection:text-white overflow-x-hidden">
+    <div className="min-h-screen bg-[#F5F5F3] font-sans selection:bg-black selection:text-white overflow-x-hidden">
       {/* Navigation */}
       <nav className="fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-md border-b border-gray-100">
         <div className="max-w-7xl mx-auto px-8 h-20 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-brand-blue rounded-xl flex items-center justify-center text-white">
+            <div className="w-10 h-10 bg-black rounded-xl flex items-center justify-center text-white">
               <Music size={24} />
             </div>
-            <span className="font-serif font-bold text-2xl tracking-tighter text-brand-blue">SAPCYM</span>
+            <span className="font-serif font-bold text-2xl tracking-tighter text-black">SAPCYM</span>
           </div>
 
           <button 
-            onClick={signInWithGoogle}
-            className="px-6 py-2.5 bg-brand-blue text-white rounded-full font-bold text-sm tracking-tight hover:scale-105 active:scale-95 transition-all shadow-lg flex items-center gap-2"
+            onClick={handleSignIn}
+            className="px-6 py-2.5 bg-black text-white rounded-full font-bold text-sm tracking-tight hover:scale-105 active:scale-95 transition-all shadow-lg flex items-center gap-2"
           >
             Enter Portal
             <ArrowRight size={16} />
@@ -62,26 +108,26 @@ export default function LandingPage() {
             animate={{ opacity: 1, x: 0 }}
             className="space-y-8"
           >
-            <div className="inline-flex items-center gap-2 px-4 py-2 bg-brand-blue/5 rounded-full text-brand-blue text-xs font-bold uppercase tracking-widest border border-brand-blue/10">
+            <div className="inline-flex items-center gap-2 px-4 py-2 bg-black/5 rounded-full text-black text-xs font-bold uppercase tracking-widest border border-black/10">
               <ShieldCheck size={14} />
               Official Ministry Portal
             </div>
-            <h1 className="text-7xl lg:text-8xl font-serif font-bold tracking-tighter text-brand-blue leading-[0.9]">
+            <h1 className="text-7xl lg:text-8xl font-serif font-bold tracking-tighter text-black leading-[0.9]">
               The Heart <br />
               <span className="italic opacity-50">of Worship.</span>
             </h1>
-            <p className="text-xl text-brand-blue/60 leading-relaxed max-w-xl">
+            <p className="text-xl text-gray-500 leading-relaxed max-w-xl">
               Saint Paul Catholic Young Movement (SAPCYM). A dedicated space for spiritual growth, choral excellence, and fraternal unity.
             </p>
             <div className="flex flex-wrap gap-4 pt-4">
               <button 
-                onClick={signInWithGoogle}
+                onClick={handleSignIn}
                 className="px-10 py-5 bg-black text-white rounded-2xl font-bold text-lg hover:scale-105 transition-all shadow-2xl flex items-center gap-3"
               >
                 Join the Ministry
                 <ChevronRight size={20} />
               </button>
-              <a href="#activities" className="px-10 py-5 bg-white text-brand-blue border border-gray-200 rounded-2xl font-bold text-lg hover:bg-gray-50 transition-all shadow-sm">
+              <a href="#activities" className="px-10 py-5 bg-white text-black border border-gray-200 rounded-2xl font-bold text-lg hover:bg-gray-50 transition-all shadow-sm">
                 Explore Activities
               </a>
             </div>
@@ -92,15 +138,15 @@ export default function LandingPage() {
             animate={{ opacity: 1, scale: 1 }}
             className="relative"
           >
-            <div className="aspect-square bg-brand-blue/5 rounded-[4rem] relative overflow-hidden group">
+            <div className="aspect-square bg-black/5 rounded-[4rem] relative overflow-hidden group">
               {photos[0] ? (
                 <img src={photos[0].url} className="w-full h-full object-cover transition-transform duration-[2s] group-hover:scale-110" alt="Hero" />
               ) : (
-                <div className="w-full h-full flex items-center justify-center text-brand-blue/10">
+                <div className="w-full h-full flex items-center justify-center text-black/10">
                   <Music size={200} />
                 </div>
               )}
-              <div className="absolute inset-0 bg-gradient-to-t from-brand-blue/80 via-transparent to-transparent" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
               <div className="absolute bottom-12 left-12 right-12">
                 <p className="text-white text-3xl font-serif font-bold italic leading-tight">"Where words fail, music speaks."</p>
               </div>
@@ -109,12 +155,12 @@ export default function LandingPage() {
             {/* Floating Stats */}
             <div className="absolute top-12 -right-8 bg-white p-6 rounded-3xl shadow-2xl border border-gray-100 hidden md:block">
               <div className="flex items-center gap-4">
-                <div className="p-3 bg-brand-blue/5 rounded-2xl text-brand-blue">
+                <div className="p-3 bg-black/5 rounded-2xl text-black">
                   <Users size={24} />
                 </div>
                 <div>
-                  <p className="text-xs font-bold uppercase tracking-widest text-brand-blue/40">Active Members</p>
-                  <p className="text-2xl font-serif font-bold text-brand-blue tracking-tighter">50+ Brothers</p>
+                  <p className="text-xs font-bold uppercase tracking-widest text-black/40">Active Members</p>
+                  <p className="text-2xl font-serif font-bold text-black tracking-tighter">50+ Brothers</p>
                 </div>
               </div>
             </div>
@@ -127,34 +173,34 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto space-y-16">
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
             <div className="space-y-4">
-              <h2 className="text-5xl font-serif font-bold tracking-tighter text-brand-blue">Announcements</h2>
-              <p className="text-brand-blue/40 font-mono text-sm uppercase tracking-widest font-bold">Stay updated with our latest activities</p>
+              <h2 className="text-5xl font-serif font-bold tracking-tighter text-black">Announcements</h2>
+              <p className="text-gray-400 font-mono text-sm uppercase tracking-widest font-bold">Stay updated with our latest activities</p>
             </div>
             <div className="p-4 bg-gray-50 rounded-2xl">
-              <Bell className="text-brand-blue" />
+              <Bell className="text-black" />
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {announcements.map((ann) => (
-              <div key={ann.id} className="p-10 bg-gray-50 rounded-[3rem] border border-gray-100 hover:border-brand-blue/30 transition-all group">
-                <div className="text-[10px] uppercase tracking-[0.2em] font-bold text-brand-blue/30 mb-6">
-                  {ann.timestamp ? format(ann.timestamp.toDate(), 'MMMM dd, yyyy') : 'No date'}
+              <div key={ann.id} className="p-10 bg-gray-50 rounded-[3rem] border border-gray-100 hover:border-black/30 transition-all group">
+                <div className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-300 mb-6">
+                  {ann.timestamp ? format(typeof ann.timestamp === 'string' ? parseISO(ann.timestamp) : ann.timestamp, 'MMMM dd, yyyy') : 'No date'}
                 </div>
-                <h3 className="text-2xl font-serif font-bold text-brand-blue leading-tight mb-4 group-hover:text-brand-blue/70 transition-colors">
+                <h3 className="text-2xl font-serif font-bold text-black leading-tight mb-4 group-hover:text-black/70 transition-colors">
                   {ann.title}
                 </h3>
-                <p className="text-brand-blue/50 line-clamp-3 leading-relaxed mb-8">
+                <p className="text-gray-500 line-clamp-3 leading-relaxed mb-8">
                   {ann.content}
                 </p>
-                <button className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-brand-blue group-hover:gap-4 transition-all">
+                <button className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-black group-hover:gap-4 transition-all">
                   Read Announcement
                   <ArrowRight size={14} />
                 </button>
               </div>
             ))}
             {announcements.length === 0 && (
-              <div className="col-span-3 text-center py-20 text-brand-blue/20 italic">
+              <div className="col-span-3 text-center py-20 text-black/20 italic">
                 No public announcements at this time.
               </div>
             )}
@@ -166,8 +212,8 @@ export default function LandingPage() {
       <section className="py-24 px-8 overflow-hidden">
         <div className="max-w-7xl mx-auto space-y-16">
           <div className="text-center space-y-4">
-            <h2 className="text-5xl font-serif font-bold tracking-tighter text-brand-blue italic">Captured Moments</h2>
-            <div className="w-24 h-1 bg-brand-blue mx-auto rounded-full" />
+            <h2 className="text-5xl font-serif font-bold tracking-tighter text-black italic">Captured Moments</h2>
+            <div className="w-24 h-1 bg-black mx-auto rounded-full" />
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -191,22 +237,22 @@ export default function LandingPage() {
       <footer className="py-20 border-t border-gray-100 px-8">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-12">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-brand-blue text-white rounded-2xl flex items-center justify-center">
+            <div className="w-12 h-12 bg-black text-white rounded-2xl flex items-center justify-center">
               <Music size={24} />
             </div>
             <div>
-              <p className="font-serif font-bold text-2xl tracking-tighter">SAPCYM</p>
-              <p className="text-xs font-bold uppercase tracking-widest text-brand-blue/30">L’excellence au service de Dieu</p>
+              <p className="font-serif font-bold text-2xl tracking-tighter text-black">SAPCYM</p>
+              <p className="text-xs font-bold uppercase tracking-widest text-gray-300">L’excellence au service de Dieu</p>
             </div>
           </div>
 
-          <div className="flex gap-12 text-xs font-bold uppercase tracking-widest text-brand-blue/50">
-            <a href="#" className="hover:text-brand-blue transition-colors">Confidentiality</a>
-            <a href="#" className="hover:text-brand-blue transition-colors">Privacy</a>
-            <a href="#" className="hover:text-brand-blue transition-colors">Terms</a>
+          <div className="flex gap-12 text-xs font-bold uppercase tracking-widest text-gray-300">
+            <a href="#" className="hover:text-black transition-colors">Confidentiality</a>
+            <a href="#" className="hover:text-black transition-colors">Privacy</a>
+            <a href="#" className="hover:text-black transition-colors">Terms</a>
           </div>
 
-          <p className="text-xs font-mono font-bold text-brand-blue/20">© 2026 SAPCYM PORTAL</p>
+          <p className="text-xs font-mono font-bold text-gray-200">© 2026 SAPCYM PORTAL</p>
         </div>
       </footer>
     </div>

@@ -1,9 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { onAuthStateChanged, User } from 'firebase/auth';
-import { doc, getDoc, onSnapshot } from 'firebase/firestore';
-import { auth, db } from './firebase';
+import { User } from '@supabase/supabase-js';
+import { supabase } from './supabase';
 import { Member } from '../types';
-import { handleFirestoreError, OperationType } from './error-handler';
 
 interface AuthContextType {
   user: User | null;
@@ -38,32 +36,86 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (u) => {
-      setUser(u);
-      if (!u) {
+    // Check active sessions and sets the user
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+      if (!session) setLoading(false);
+    });
+
+    // Listen for changes on auth state (sign in, sign out, etc.)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+      if (!session) {
         setMember(null);
         setLoading(false);
       }
     });
 
-    return unsubscribe;
+    return () => subscription.unsubscribe();
   }, []);
 
   useEffect(() => {
     if (user) {
-      const memberPath = `members/${user.uid}`;
-      const unsub = onSnapshot(doc(db, 'members', user.uid), (docSnap) => {
-        if (docSnap.exists()) {
-          setMember({ uid: user.uid, ...docSnap.data() } as Member);
+      const fetchMember = async () => {
+        const { data, error } = await supabase
+          .from('members')
+          .select('*')
+          .eq('uid', user.id)
+          .single();
+
+        if (data) {
+          // Map snake_case to camelCase
+          const mappedMember: Member = {
+            uid: data.uid,
+            fullName: data.full_name,
+            role: data.role,
+            gender: data.gender,
+            voiceSection: data.voice_section,
+            status: data.status,
+            onboardingDate: data.onboarding_date,
+            oldMember: data.old_member,
+            pendingApproval: data.pending_approval,
+            avatarUrl: data.avatar_url
+          };
+          setMember(mappedMember);
         } else {
           setMember(null);
         }
         setLoading(false);
-      }, (error) => {
-        handleFirestoreError(error, OperationType.GET, memberPath);
-        setLoading(false);
-      });
-      return unsub;
+      };
+
+      fetchMember();
+
+      // Real-time subscription for member changes
+      const channel = supabase
+        .channel(`public:members:uid=eq.${user.id}`)
+        .on('postgres_changes', { 
+          event: '*', 
+          schema: 'public', 
+          table: 'members', 
+          filter: `uid=eq.${user.id}` 
+        }, payload => {
+          if (payload.new) {
+            const data = payload.new as any;
+            setMember({
+              uid: data.uid,
+              fullName: data.full_name,
+              role: data.role,
+              gender: data.gender,
+              voiceSection: data.voice_section,
+              status: data.status,
+              onboardingDate: data.onboarding_date,
+              oldMember: data.old_member,
+              pendingApproval: data.pending_approval,
+              avatarUrl: data.avatar_url
+            });
+          }
+        })
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
     }
   }, [user]);
 

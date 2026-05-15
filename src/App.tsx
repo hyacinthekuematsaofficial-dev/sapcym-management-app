@@ -15,7 +15,7 @@ import Onboarding from './components/Onboarding';
 import LandingPage from './components/LandingPage';
 
 import { ShieldCheck, LogOut, Clock, ShieldAlert } from 'lucide-react';
-import { auth } from './lib/firebase';
+import { supabase } from './lib/supabase';
 
 function PendingApproval() {
   const { member } = useAuth();
@@ -26,11 +26,11 @@ function PendingApproval() {
           <Clock size={48} className="animate-pulse" />
         </div>
         <div className="space-y-4">
-          <h1 className="text-4xl font-serif font-black tracking-tighter text-brand-blue italic leading-tight">
+          <h1 className="text-4xl font-serif font-black tracking-tighter text-black italic leading-tight">
             Account Pending <br/> Confirmation
           </h1>
           <p className="text-gray-500 font-sans leading-relaxed text-lg">
-            Welcome, <span className="font-bold text-brand-blue">{member?.fullName}</span>. Your registration for SAPCYM is currently being reviewed by the Executive Committee. 
+            Welcome, <span className="font-bold text-black">{member?.fullName}</span>. Your registration for SAPCYM is currently being reviewed by the Executive Committee. 
           </p>
         </div>
         <div className="p-8 bg-orange-50 border border-orange-100 rounded-[2rem] space-y-3">
@@ -43,7 +43,7 @@ function PendingApproval() {
           </p>
         </div>
         <button 
-          onClick={() => auth.signOut()}
+          onClick={() => supabase.auth.signOut()}
           className="w-full py-5 bg-gray-100 text-gray-500 rounded-2xl font-bold text-[10px] uppercase tracking-[0.2em] hover:bg-red-50 hover:text-red-600 transition-all flex items-center justify-center gap-3 border border-gray-100"
         >
           <LogOut size={16} />
@@ -61,10 +61,10 @@ function AppContent() {
     return (
       <div className="h-screen w-screen grid place-items-center bg-[#F5F5F3]">
         <div className="flex flex-col items-center gap-6">
-          <div className="w-16 h-16 border-4 border-brand-blue/10 border-t-brand-blue rounded-full animate-spin" />
+          <div className="w-16 h-16 border-4 border-black/10 border-t-black rounded-full animate-spin" />
           <div className="text-center space-y-1">
-            <p className="font-serif italic text-2xl font-bold text-brand-blue">Saint Paul Catholic Young Movement</p>
-            <p className="font-mono text-[10px] uppercase font-bold tracking-[0.3em] text-brand-blue/40">Initializing SAPCYM Portal</p>
+            <p className="font-serif italic text-2xl font-bold text-black">Saint Paul Catholic Young Movement</p>
+            <p className="font-mono text-[10px] uppercase font-bold tracking-[0.3em] text-black/40">Initializing SAPCYM Portal</p>
           </div>
         </div>
       </div>

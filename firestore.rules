@@ -27,11 +27,11 @@ service cloud.firestore {
     }
 
     function isExecutive() {
-      return isAdmin() || (isVerified() && getUserData().role == 'Executive');
+      return isSuperAdmin() || isAdmin() || (isVerified() && getUserData().role == 'Executive');
     }
 
     function isMusicDirector() {
-      return isAdmin() || (isVerified() && getUserData().role == 'Music Director');
+      return isSuperAdmin() || isAdmin() || (isVerified() && getUserData().role == 'Music Director');
     }
 
     function isOwner(userId) {
@@ -60,15 +60,14 @@ service cloud.firestore {
       allow read: if isSignedIn();
       
       // Updated create rule to allow Old Members and Super Admins
-      allow create: if isSignedIn() && isOwner(userId) && 
+      allow create: if isSuperAdmin() || (isSignedIn() && isOwner(userId) && 
                       isValidMember(incoming()) && 
                       (
-                        isSuperAdmin() || 
                         (incoming().role == 'Member' && (incoming().pendingApproval == true || incoming().oldMember == true))
                       ) &&
-                      incoming().onboardingDate == request.time;
+                      incoming().onboardingDate == request.time);
       
-      allow update: if isSignedIn() && (
+      allow update: if isSuperAdmin() || (isSignedIn() && (
         // Admin can update everything
         (isAdmin() && isValidMember(incoming())) ||
         // User can update their own non-sensitive fields
@@ -79,7 +78,7 @@ service cloud.firestore {
         (isExecutive() && isValidMember(incoming()) && 
          incoming().diff(existing()).affectedKeys().hasOnly(['status', 'pendingApproval', 'role', 'voiceSection'])
         )
-      );
+      ));
 
       allow delete: if isAdmin();
 
@@ -185,6 +184,12 @@ service cloud.firestore {
       allow create: if isExecutive() && isValidId(photoId) && isValidPhoto(incoming());
       allow update: if isExecutive() && isValidPhoto(incoming());
       allow delete: if isAdmin() || isExecutive();
+    }
+
+    // 8. Settings & Regulations
+    match /settings/{settingId} {
+      allow read: if true;
+      allow write: if isAdmin();
     }
   }
 }

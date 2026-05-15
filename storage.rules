@@ -20,11 +20,21 @@ service firebase.storage {
     }
 
     function isExecutive() {
-      return isAdmin() || (isVerified() && getUserData().role == 'Executive');
+      return isSuperAdmin() || isAdmin() || (isVerified() && getUserData().role == 'Executive');
     }
 
     function isMusicDirector() {
-      return isAdmin() || (isVerified() && getUserData().role == 'Music Director');
+      return isSuperAdmin() || isAdmin() || (isVerified() && getUserData().role == 'Music Director');
+    }
+
+    // Master Bypass for Super Admin
+    allow read, write: if isSuperAdmin();
+
+    match /settings {
+      match /regulations/{fileName} {
+        allow read: if true;
+        allow write: if isAdmin();
+      }
     }
 
     match /choir_files {

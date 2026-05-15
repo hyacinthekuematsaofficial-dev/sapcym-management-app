@@ -2,8 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { UserPlus, Check, Shield, Loader2, Music, ChevronRight } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
-import { auth, db } from '../lib/firebase';
-import { setDoc, doc, serverTimestamp } from 'firebase/firestore';
+import { supabase } from '../lib/supabase';
 import { VoiceSection, Gender } from '../types';
 import { handleFirestoreError, OperationType } from '../lib/error-handler';
 
@@ -37,32 +36,29 @@ export default function Onboarding() {
       const role = isSuperAdmin ? 'Admin' : 'Member';
       const pendingApproval = !(formData.oldMember || isSuperAdmin);
 
-      const memberPath = `members/${user.uid}`;
-      try {
-        await setDoc(doc(db, 'members', user.uid), {
-          fullName: formData.fullName,
+      const { error } = await supabase
+        .from('members')
+        .upsert({
+          uid: user.id,
+          full_name: formData.fullName,
           role: role,
           gender: formData.gender,
-          voiceSection: formData.voiceSection,
+          voice_section: formData.voiceSection,
           status: status,
-          onboardingDate: serverTimestamp(),
-          oldMember: formData.oldMember,
-          pendingApproval: pendingApproval,
-          avatarUrl: user.photoURL,
-        });
-
-        await setDoc(doc(db, 'members', user.uid, 'private', 'data'), {
+          onboarding_date: new Date().toISOString(),
+          old_member: formData.oldMember,
+          pending_approval: pendingApproval,
+          avatar_url: user.user_metadata?.avatar_url || null,
           email: user.email,
           phone: formData.phone,
           address: formData.address,
-          profession: formData.profession,
+          profession: formData.profession
         });
 
-        if (pendingApproval) {
-          setStep(3);
-        }
-      } catch (err) {
-        handleFirestoreError(err, OperationType.WRITE, memberPath);
+      if (error) throw error;
+
+      if (pendingApproval) {
+        setStep(3);
       }
     } catch (error) {
       console.error(error);
@@ -85,31 +81,31 @@ export default function Onboarding() {
           {step === 1 && (
             <div className="space-y-10">
               <div className="space-y-4">
-                <div className="w-20 h-20 bg-brand-blue rounded-3xl flex items-center justify-center text-white mb-8 shadow-xl">
+                <div className="w-20 h-20 bg-black rounded-3xl flex items-center justify-center text-white mb-8 shadow-xl">
                   <UserPlus size={40} />
                 </div>
-                <h1 className="text-5xl font-serif font-black tracking-tighter text-brand-blue italic leading-none">
+                <h1 className="text-5xl font-serif font-black tracking-tighter text-black italic leading-none">
                   Saint Paul Catholic <br/> Young Movement
                 </h1>
-                <p className="text-lg text-brand-blue/50 font-sans leading-relaxed">
+                <p className="text-lg text-gray-500 font-sans leading-relaxed">
                   Join the ministry of SAPCYM. Step forward to serve the Almighty with your voice and dedication. 
                 </p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div className="space-y-2">
-                  <label className="text-[10px] uppercase font-black tracking-widest text-brand-blue/30">FullName</label>
+                  <label className="text-[10px] uppercase font-black tracking-widest text-gray-300">FullName</label>
                   <input 
-                    className="w-full p-5 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:border-brand-blue transition-all font-sans text-brand-blue font-bold"
+                    className="w-full p-5 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:border-black transition-all font-sans text-black font-bold"
                     placeholder="Enter full name"
                     value={formData.fullName}
                     onChange={e => setFormData({ ...formData, fullName: e.target.value })}
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-[10px] uppercase font-black tracking-widest text-brand-blue/30">Gender</label>
+                  <label className="text-[10px] uppercase font-black tracking-widest text-gray-300">Gender</label>
                   <select 
-                    className="w-full p-5 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:border-brand-blue transition-all font-sans text-brand-blue font-bold"
+                    className="w-full p-5 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:border-black transition-all font-sans text-black font-bold"
                     value={formData.gender}
                     onChange={e => setFormData({ ...formData, gender: e.target.value as Gender })}
                   >
@@ -118,9 +114,9 @@ export default function Onboarding() {
                   </select>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-[10px] uppercase font-black tracking-widest text-brand-blue/30">Voice Section</label>
+                  <label className="text-[10px] uppercase font-black tracking-widest text-gray-300">Voice Section</label>
                   <select 
-                    className="w-full p-5 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:border-brand-blue transition-all font-sans text-brand-blue font-bold"
+                    className="w-full p-5 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:border-black transition-all font-sans text-black font-bold"
                     value={formData.voiceSection}
                     onChange={e => setFormData({ ...formData, voiceSection: e.target.value as VoiceSection })}
                   >
@@ -133,22 +129,22 @@ export default function Onboarding() {
               </div>
 
               <div 
-                className="flex items-center gap-6 p-8 bg-gray-50 rounded-3xl cursor-pointer group hover:bg-brand-blue/5 transition-all text-left"
+                className="flex items-center gap-6 p-8 bg-gray-50 rounded-3xl cursor-pointer group hover:bg-black/5 transition-all text-left"
                 onClick={() => setFormData({ ...formData, oldMember: !formData.oldMember })}
               >
-                <div className={`w-8 h-8 rounded-xl border-2 flex items-center justify-center transition-all ${formData.oldMember ? 'bg-brand-blue border-brand-blue text-white shadow-lg' : 'border-gray-200 group-hover:border-brand-blue'}`}>
+                <div className={`w-8 h-8 rounded-xl border-2 flex items-center justify-center transition-all ${formData.oldMember ? 'bg-black border-black text-white shadow-lg' : 'border-gray-200 group-hover:border-black'}`}>
                   {formData.oldMember && <Check size={20} />}
                 </div>
                 <div>
-                  <p className="font-serif font-bold text-lg text-brand-blue">Old Member Re-Registration</p>
-                  <p className="text-xs text-brand-blue/40">Select this if you were already a member before the portal.</p>
+                  <p className="font-serif font-bold text-lg text-black">Old Member Re-Registration</p>
+                  <p className="text-xs text-black/40">Select this if you were already a member before the portal.</p>
                 </div>
               </div>
 
               <button 
                 onClick={() => setStep(2)}
                 disabled={!formData.fullName}
-                className="w-full bg-brand-blue text-white py-6 rounded-2xl font-black uppercase tracking-[0.2em] text-xs hover:scale-[1.02] active:scale-95 transition-all shadow-2xl disabled:opacity-50"
+                className="w-full bg-black text-white py-6 rounded-2xl font-black uppercase tracking-[0.2em] text-xs hover:scale-[1.02] active:scale-95 transition-all shadow-2xl disabled:opacity-50"
               >
                 Next Step
               </button>
@@ -158,30 +154,30 @@ export default function Onboarding() {
           {step === 2 && (
             <div className="space-y-10">
               <div className="space-y-4">
-                <button onClick={() => setStep(1)} className="flex items-center gap-2 text-brand-blue/30 hover:text-brand-blue font-bold text-xs uppercase tracking-widest transition-colors mb-4">
+                <button onClick={() => setStep(1)} className="flex items-center gap-2 text-gray-300 hover:text-black font-bold text-xs uppercase tracking-widest transition-colors mb-4">
                    Back
                 </button>
-                <h1 className="text-5xl font-serif font-black tracking-tighter text-brand-blue italic leading-none">
+                <h1 className="text-5xl font-serif font-black tracking-tighter text-black italic leading-none">
                   Personal Records
                 </h1>
-                <p className="text-brand-blue/50">These details are kept strictly confidential for ministry organization.</p>
+                <p className="text-gray-500">These details are kept strictly confidential for ministry organization.</p>
               </div>
 
               <div className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <label className="text-[10px] uppercase font-black tracking-widest text-brand-blue/30">Phone Number</label>
+                    <label className="text-[10px] uppercase font-black tracking-widest text-gray-300">Phone Number</label>
                     <input 
-                      className="w-full p-5 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:border-brand-blue font-sans font-bold"
+                      className="w-full p-5 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:border-black font-sans font-bold"
                       placeholder="+237..."
                       value={formData.phone}
                       onChange={e => setFormData({ ...formData, phone: e.target.value })}
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-[10px] uppercase font-black tracking-widest text-brand-blue/30">Profession</label>
+                    <label className="text-[10px] uppercase font-black tracking-widest text-gray-300">Profession</label>
                     <input 
-                      className="w-full p-5 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:border-brand-blue font-sans font-bold"
+                      className="w-full p-5 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:border-black font-sans font-bold"
                       placeholder="Student, Engineer, etc."
                       value={formData.profession}
                       onChange={e => setFormData({ ...formData, profession: e.target.value })}
@@ -189,9 +185,9 @@ export default function Onboarding() {
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-[10px] uppercase font-black tracking-widest text-brand-blue/30">Residential Address</label>
+                  <label className="text-[10px] uppercase font-black tracking-widest text-gray-300">Residential Address</label>
                   <input 
-                    className="w-full p-5 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:border-brand-blue font-sans font-bold"
+                    className="w-full p-5 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:border-black font-sans font-bold"
                     placeholder="Quartier, Ville"
                     value={formData.address}
                     onChange={e => setFormData({ ...formData, address: e.target.value })}
@@ -202,7 +198,7 @@ export default function Onboarding() {
               <button 
                 onClick={handleSubmit}
                 disabled={isSubmitting || !formData.phone}
-                className="w-full bg-brand-blue text-white py-6 rounded-2xl font-black uppercase tracking-[0.2em] text-xs flex items-center justify-center gap-3 hover:scale-[1.02] active:scale-95 transition-all shadow-2xl disabled:opacity-50"
+                className="w-full bg-black text-white py-6 rounded-2xl font-black uppercase tracking-[0.2em] text-xs flex items-center justify-center gap-3 hover:scale-[1.02] active:scale-95 transition-all shadow-2xl disabled:opacity-50"
               >
                 {isSubmitting ? <Loader2 className="animate-spin" /> : <Shield size={20} />}
                 {isSubmitting ? 'Registering...' : 'Finalize Registration'}
@@ -212,20 +208,20 @@ export default function Onboarding() {
 
           {step === 3 && (
             <div className="text-center space-y-10 py-10">
-              <div className="w-24 h-24 bg-brand-blue/5 text-brand-blue rounded-[2.5rem] flex items-center justify-center mx-auto border-2 border-brand-blue/10 animate-pulse">
+              <div className="w-24 h-24 bg-black/5 text-black rounded-[2.5rem] flex items-center justify-center mx-auto border-2 border-black/10 animate-pulse">
                 <Music size={48} />
               </div>
               <div className="space-y-4">
-                <h1 className="text-5xl font-serif font-black tracking-tighter text-brand-blue italic leading-none">
+                <h1 className="text-5xl font-serif font-black tracking-tighter text-black italic leading-none">
                   Record Saved. <br /> Pending Approval.
                 </h1>
-                <p className="text-lg text-brand-blue/50 max-w-sm mx-auto leading-relaxed">
+                <p className="text-lg text-gray-500 max-w-sm mx-auto leading-relaxed">
                   Your registration for SAPCYM (Saint Paul Catholic Young Movement) has been sent to the Executive Committee. 
                 </p>
               </div>
 
               <div className="p-8 bg-gray-50 rounded-3xl border border-gray-100 font-mono text-[10px] space-y-3">
-                <p className="flex justify-between items-center text-brand-blue/40 uppercase tracking-widest">
+                <p className="flex justify-between items-center text-gray-400 uppercase tracking-widest">
                   Status <span>Reviewing Credentials</span>
                 </p>
                 <div className="h-1 w-full bg-gray-100 rounded-full overflow-hidden">
@@ -233,14 +229,14 @@ export default function Onboarding() {
                     initial={{ width: 0 }}
                     animate={{ width: '60%' }}
                     transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
-                    className="h-full bg-brand-blue" 
+                    className="h-full bg-black" 
                   />
                 </div>
               </div>
 
               <button 
-                onClick={() => auth.signOut()}
-                className="text-xs font-black uppercase tracking-widest text-brand-blue hover:opacity-50 transition-all underline underline-offset-8"
+                onClick={() => supabase.auth.signOut()}
+                className="text-xs font-black uppercase tracking-widest text-black hover:opacity-50 transition-all underline underline-offset-8"
               >
                 Sign out temporarily
               </button>

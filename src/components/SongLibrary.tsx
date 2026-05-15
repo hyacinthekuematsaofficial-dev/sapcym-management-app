@@ -17,11 +17,9 @@ import {
   Trash2
 } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
-import { db, storage } from '../lib/firebase';
-import { collection, query, orderBy, onSnapshot, addDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
-import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
+import { supabase } from '../lib/supabase';
 import { Song } from '../types';
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 
 export default function SongLibrary() {
   const { isMusicDirector, isAdmin, user } = useAuth();
@@ -32,12 +30,42 @@ export default function SongLibrary() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const q = query(collection(db, 'songs'), orderBy('uploadDate', 'desc'));
-    const unsub = onSnapshot(q, (snapshot) => {
-      setSongs(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Song)));
+    const fetchSongs = async () => {
+      const { data, error } = await supabase
+        .from('songs')
+        .select('*')
+        .order('upload_date', { ascending: false });
+
+      if (data) {
+        setSongs(data.map(s => ({
+          id: s.id,
+          title: s.title,
+          composer: s.composer,
+          musicalKey: s.musical_key,
+          uploadDate: s.upload_date,
+          scoreUrl: s.score_url,
+          lyricsUrl: s.lyrics_url,
+          audioUrl: s.audio_url,
+          lyricsText: s.lyrics_text,
+          uploadedBy: s.uploaded_by
+        } as Song)));
+      }
       setLoading(false);
-    });
-    return unsub;
+    };
+
+    fetchSongs();
+
+    // Subscribe to changes
+    const channel = supabase
+      .channel('public:songs')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'songs' }, payload => {
+        fetchSongs();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const filteredSongs = songs.filter(s => {
@@ -92,7 +120,7 @@ export default function SongLibrary() {
       </div>
 
       {isUploadModalOpen && (
-        <UploadModal onClose={() => setIsUploadModalOpen(false)} uid={user?.uid || ''} />
+        <UploadModal onClose={() => setIsUploadModalOpen(false)} uid={user?.id || ''} />
       )}
     </div>
   );
@@ -126,13 +154,28 @@ function SongCard({ song, canManage }: { song: Song, canManage: boolean }) {
     if (!confirm("Are you sure you want to delete this song? All related files will be removed.")) return;
     try {
       // Delete files from storage if they exist
-      if (song.scoreUrl) await deleteObject(ref(storage, song.scoreUrl)).catch(console.error);
-      if (song.lyricsUrl) await deleteObject(ref(storage, song.lyricsUrl)).catch(console.error);
-      if (song.audioUrl) await deleteObject(ref(storage, song.audioUrl)).catch(console.error);
+      const filesToDelete = [];
+      if (song.scoreUrl) {
+         const path = song.scoreUrl.split('/public/choir_files/')[1];
+         if (path) filesToDelete.push(path);
+      }
+      if (song.lyricsUrl) {
+         const path = song.lyricsUrl.split('/public/choir_files/')[1];
+         if (path) filesToDelete.push(path);
+      }
+      if (song.audioUrl) {
+         const path = song.audioUrl.split('/public/choir_files/')[1];
+         if (path) filesToDelete.push(path);
+      }
       
-      await deleteDoc(doc(db, 'songs', song.id));
+      if (filesToDelete.length > 0) {
+        await supabase.storage.from('choir_files').remove(filesToDelete);
+      }
+      
+      await supabase.from('songs').delete().eq('id', song.id);
     } catch (e) {
       console.error(e);
+      alert("Error deleting song.");
     }
   };
 
@@ -165,7 +208,7 @@ function SongCard({ song, canManage }: { song: Song, canManage: boolean }) {
         <h3 className="text-2xl font-bold tracking-tighter italic leading-none mb-2">{song.title}</h3>
         <p className="text-gray-400 font-sans font-medium">{song.composer || 'Unknown Composer'}</p>
         <p className="text-[10px] text-gray-300 uppercase font-bold tracking-[0.2em] mt-4">
-          Uploaded on {format(song.uploadDate?.toDate() || new Date(), 'MMMM dd, yyyy')}
+          Uploaded on {format(typeof song.uploadDate === 'string' ? parseISO(song.uploadDate) : new Date(), 'MMMM dd, yyyy')}
         </p>
       </div>
 
@@ -276,11 +319,6 @@ function UploadModal({ onClose, uid }: { onClose: () => void, uid: string }) {
     lyrics: null,
     audio: null
   });
-  const [progress, setProgress] = useState<{ score: number, lyrics: number, audio: number }>({
-    score: 0,
-    lyrics: 0,
-    audio: 0
-  });
   const [isUploading, setIsUploading] = useState(false);
 
   const handleUpload = async () => {
@@ -294,37 +332,34 @@ function UploadModal({ onClose, uid }: { onClose: () => void, uid: string }) {
       for (const [type, file] of Object.entries(files)) {
         if (file) {
           const extension = file.name.split('.').pop();
-          const storageRef = ref(storage, `choir_files/songs/${songId}/${type}.${extension}`);
-          const uploadTask = uploadBytesResumable(storageRef, file);
+          const filePath = `songs/${songId}/${type}.${extension}`;
+          
+          const { data, error } = await supabase.storage
+            .from('choir_files')
+            .upload(filePath, file);
 
-          await new Promise((resolve, reject) => {
-            uploadTask.on('state_changed', 
-              (snap) => {
-                const p = (snap.bytesTransferred / snap.totalBytes) * 100;
-                setProgress(prev => ({ ...prev, [type]: p }));
-              },
-              reject,
-              () => {
-                getDownloadURL(uploadTask.snapshot.ref).then(url => {
-                  urls[`${type}Url`] = url;
-                  resolve(null);
-                });
-              }
-            );
-          });
+          if (error) throw error;
+
+          const { data: { publicUrl } } = supabase.storage
+            .from('choir_files')
+            .getPublicUrl(filePath);
+
+          urls[`${type}_url`] = publicUrl;
         }
       }
 
-      await addDoc(collection(db, 'songs'), {
-        title,
-        composer,
-        musicalKey,
-        lyricsText,
-        uploadDate: serverTimestamp(),
-        uploadedBy: uid,
-        ...urls
-      });
+      const { error } = await supabase
+        .from('songs')
+        .insert({
+          title,
+          composer,
+          musical_key: musicalKey,
+          lyrics_text: lyricsText,
+          uploaded_by: uid,
+          ...urls
+        });
 
+      if (error) throw error;
       onClose();
     } catch (e) {
       console.error(e);
@@ -396,7 +431,6 @@ function UploadModal({ onClose, uid }: { onClose: () => void, uid: string }) {
                 icon={<FileText size={18} />} 
                 accept=".pdf"
                 file={files.score}
-                progress={progress.score}
                 onChange={f => setFiles({...files, score: f})}
               />
               <UploadSlot 
@@ -404,7 +438,6 @@ function UploadModal({ onClose, uid }: { onClose: () => void, uid: string }) {
                 icon={<ImageIcon size={18} />} 
                 accept="image/*"
                 file={files.lyrics}
-                progress={progress.lyrics}
                 onChange={f => setFiles({...files, lyrics: f})}
               />
               <UploadSlot 
@@ -412,7 +445,6 @@ function UploadModal({ onClose, uid }: { onClose: () => void, uid: string }) {
                 icon={<Mic size={18} />} 
                 accept="audio/*"
                 file={files.audio}
-                progress={progress.audio}
                 onChange={f => setFiles({...files, audio: f})}
               />
             </div>
@@ -432,8 +464,8 @@ function UploadModal({ onClose, uid }: { onClose: () => void, uid: string }) {
   );
 }
 
-function UploadSlot({ label, icon, accept, file, progress, onChange }: { 
-  label: string, icon: any, accept: string, file: File | null, progress: number, onChange: (f: File | null) => void 
+function UploadSlot({ label, icon, accept, file, onChange }: { 
+  label: string, icon: any, accept: string, file: File | null, onChange: (f: File | null) => void 
 }) {
   return (
     <div className="relative">
@@ -449,11 +481,6 @@ function UploadSlot({ label, icon, accept, file, progress, onChange }: {
           <p className="text-[10px] font-bold uppercase tracking-widest leading-none mb-1 truncate">
             {file ? file.name : label}
           </p>
-          {file && progress > 0 && progress < 100 && (
-            <div className="h-1 w-full bg-gray-200 rounded-full mt-2">
-              <div className="h-full bg-black transition-all" style={{ width: `${progress}%` }} />
-            </div>
-          )}
         </div>
       </div>
     </div>

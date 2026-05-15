@@ -16,10 +16,9 @@ import {
   Loader2
 } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
-import { db } from '../lib/firebase';
-import { collection, query, where, getDocs, addDoc, doc, updateDoc, serverTimestamp, setDoc, orderBy } from 'firebase/firestore';
+import { supabase } from '../lib/supabase';
 import { Member, AttendanceRecord } from '../types';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, subMonths, addMonths } from 'date-fns';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, subMonths, addMonths, parseISO } from 'date-fns';
 import { jsPDF } from 'jspdf';
 
 export default function AttendanceSystem() {
@@ -28,7 +27,6 @@ export default function AttendanceSystem() {
   const [members, setMembers] = useState<Member[]>([]);
   const [attendance, setAttendance] = useState<Record<string, 'present' | 'absent'>>({});
   const [history, setHistory] = useState<AttendanceRecord[]>([]);
-  const [currentDate, setCurrentDate] = useState(new Date());
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -38,12 +36,36 @@ export default function AttendanceSystem() {
 
   const fetchData = async () => {
     setLoading(true);
-    const membersSnap = await getDocs(query(collection(db, 'members'), where('status', '==', 'Active')));
-    const activeMembers = membersSnap.docs.map(doc => ({ uid: doc.id, ...doc.data() } as Member));
-    setMembers(activeMembers);
+    const { data: membersData } = await supabase
+      .from('members')
+      .select('*')
+      .eq('status', 'Active');
+    
+    if (membersData) {
+      setMembers(membersData.map(m => ({
+        uid: m.uid,
+        fullName: m.full_name,
+        voiceSection: m.voice_section,
+        avatarUrl: m.avatar_url,
+        status: m.status
+      } as Member)));
+    }
 
-    const historySnap = await getDocs(query(collection(db, 'attendance'), orderBy('date', 'desc')));
-    setHistory(historySnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as AttendanceRecord)));
+    const { data: historyData } = await supabase
+      .from('attendance')
+      .select('*')
+      .order('date', { ascending: false });
+
+    if (historyData) {
+      setHistory(historyData.map(h => ({
+        id: h.id,
+        date: h.date,
+        memberId: h.member_id,
+        status: h.status,
+        sessionType: h.session_type,
+        markedBy: h.marked_by
+      } as AttendanceRecord)));
+    }
     setLoading(false);
   };
 
@@ -59,21 +81,30 @@ export default function AttendanceSystem() {
       const isPracticeDay = today.getDay() === 3 || today.getDay() === 6;
       const sessionType = isPracticeDay ? "Choir Practice" : "General Session";
 
-      for (const [uid, status] of Object.entries(attendance)) {
+      const records = Object.entries(attendance).map(([uid, status]) => {
         const recordId = `${format(today, 'yyyy-MM-dd')}_${uid}`;
-        await setDoc(doc(db, 'attendance', recordId), {
-          date: today,
-          memberId: uid,
+        return {
+          id: recordId,
+          date: today.toISOString(),
+          member_id: uid,
           status,
-          sessionType,
-          markedBy: currentMember?.uid
-        });
-      }
+          session_type: sessionType,
+          marked_by: currentMember?.uid
+        };
+      });
+
+      const { error } = await supabase
+        .from('attendance')
+        .upsert(records);
+
+      if (error) throw error;
+
       alert(`Attendance for ${sessionType} saved successfully!`);
       fetchData();
       generatePDF(today);
     } catch (e) {
       console.error(e);
+      alert("Error saving attendance.");
     } finally {
       setIsSaving(false);
     }
@@ -83,7 +114,8 @@ export default function AttendanceSystem() {
     let csv = "Date,Member Name,Status,Marked By\n";
     history.forEach(h => {
       const m = members.find(mem => mem.uid === h.memberId);
-      csv += `${format(h.date.toDate(), 'yyyy-MM-dd')},${m?.fullName || 'Unknown'},${h.status},${h.markedBy}\n`;
+      const dateStr = typeof h.date === 'string' ? format(parseISO(h.date), 'yyyy-MM-dd') : format(h.date, 'yyyy-MM-dd');
+      csv += `${dateStr},${m?.fullName || 'Unknown'},${h.status},${h.markedBy}\n`;
     });
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
@@ -215,7 +247,10 @@ function HistoryView({ history, members }: { history: AttendanceRecord[], member
   });
 
   const getDayAttendance = (day: Date, memberId: string) => {
-    return history.find(h => isSameDay(h.date.toDate(), day) && h.memberId === memberId);
+    return history.find(h => {
+      const hDate = typeof h.date === 'string' ? parseISO(h.date) : h.date;
+      return isSameDay(hDate, day) && h.memberId === memberId;
+    });
   };
 
   const getMemberPresenceStats = (memberId: string) => {

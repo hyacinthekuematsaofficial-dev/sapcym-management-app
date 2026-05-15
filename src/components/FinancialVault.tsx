@@ -12,11 +12,9 @@ import {
   Calendar
 } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
-import { db, storage } from '../lib/firebase';
-import { collection, query, orderBy, onSnapshot, addDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
-import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
+import { supabase } from '../lib/supabase';
 import { FinancialReport } from '../types';
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 
 export default function FinancialVault() {
   const { isExecutive, isAdmin, user } = useAuth();
@@ -26,21 +24,55 @@ export default function FinancialVault() {
 
   useEffect(() => {
     if (!isExecutive) return;
-    const q = query(collection(db, 'financial_reports'), orderBy('year', 'desc'), orderBy('month', 'desc'));
-    const unsub = onSnapshot(q, (snapshot) => {
-      setReports(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as FinancialReport)));
+    
+    const fetchReports = async () => {
+      const { data, error } = await supabase
+        .from('financial_reports')
+        .select('*')
+        .order('year', { ascending: false })
+        .order('month', { ascending: false });
+
+      if (data) {
+        setReports(data.map(r => ({
+          id: r.id,
+          year: r.year,
+          month: r.month,
+          pdfUrl: r.pdf_url,
+          uploadDate: r.upload_date,
+          uploadedBy: r.uploaded_by
+        } as FinancialReport)));
+      }
       setLoading(false);
-    });
-    return unsub;
+    };
+
+    fetchReports();
+
+    // Subscribe to changes
+    const channel = supabase
+      .channel('public:financial_reports')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'financial_reports' }, payload => {
+        fetchReports();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [isExecutive]);
 
   const handleDelete = async (report: FinancialReport) => {
     if (!confirm("Permanently delete this financial report?")) return;
     try {
-      await deleteObject(ref(storage, report.pdfUrl)).catch(console.error);
-      await deleteDoc(doc(db, 'financial_reports', report.id));
+      if (report.pdfUrl) {
+        const path = report.pdfUrl.split('/public/choir_files/')[1];
+        if (path) {
+          await supabase.storage.from('choir_files').remove([path]);
+        }
+      }
+      await supabase.from('financial_reports').delete().eq('id', report.id);
     } catch (e) {
       console.error(e);
+      alert("Error deleting report.");
     }
   };
 
@@ -94,7 +126,7 @@ export default function FinancialVault() {
                 <p className="text-gray-400 font-mono font-bold mt-1">{report.year}</p>
                 <div className="mt-6 flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-gray-400">
                   <Calendar size={12} />
-                  Uploaded {format(report.uploadDate?.toDate() || new Date(), 'MMM dd')}
+                  Uploaded {format(typeof report.uploadDate === 'string' ? parseISO(report.uploadDate) : new Date(), 'MMM dd')}
                 </div>
               </div>
 
@@ -122,7 +154,7 @@ export default function FinancialVault() {
       </div>
 
       {isModalOpen && (
-        <UploadReportModal onClose={() => setIsModalOpen(false)} uid={user?.uid || ''} />
+        <UploadReportModal onClose={() => setIsModalOpen(false)} uid={user?.id || ''} />
       )}
     </div>
   );
@@ -132,7 +164,6 @@ function UploadReportModal({ onClose, uid }: { onClose: () => void, uid: string 
   const [year, setYear] = useState(new Date().getFullYear());
   const [month, setMonth] = useState(new Date().getMonth() + 1);
   const [file, setFile] = useState<File | null>(null);
-  const [progress, setProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
 
   const handleUpload = async () => {
@@ -140,28 +171,25 @@ function UploadReportModal({ onClose, uid }: { onClose: () => void, uid: string 
     setIsUploading(true);
 
     try {
-      const storageRef = ref(storage, `choir_files/reports/${year}/${month}_financial_report.pdf`);
-      const uploadTask = uploadBytesResumable(storageRef, file);
+      const filePath = `reports/${year}/${month}_financial_report.pdf`;
+      const { data, error } = await supabase.storage
+        .from('choir_files')
+        .upload(filePath, file, { upsert: true });
 
-      await new Promise((resolve, reject) => {
-        uploadTask.on('state_changed', 
-          (snap) => {
-            setProgress((snap.bytesTransferred / snap.totalBytes) * 100);
-          },
-          reject,
-          async () => {
-            const url = await getDownloadURL(uploadTask.snapshot.ref);
-            await addDoc(collection(db, 'financial_reports'), {
-              year,
-              month,
-              pdfUrl: url,
-              uploadDate: serverTimestamp(),
-              uploadedBy: uid
-            });
-            resolve(null);
-          }
-        );
+      if (error) throw error;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('choir_files')
+        .getPublicUrl(filePath);
+
+      const { error: dbError } = await supabase.from('financial_reports').insert({
+        year,
+        month,
+        pdf_url: publicUrl,
+        uploaded_by: uid
       });
+
+      if (dbError) throw dbError;
       onClose();
     } catch (e) {
       console.error(e);
@@ -218,7 +246,7 @@ function UploadReportModal({ onClose, uid }: { onClose: () => void, uid: string 
 
             {isUploading && (
               <div className="h-2 w-full bg-gray-100 rounded-full overflow-hidden">
-                <div className="h-full bg-black transition-all" style={{ width: `${progress}%` }} />
+                <div className="h-full bg-black animate-pulse" style={{ width: '100%' }} />
               </div>
             )}
           </div>

@@ -15,11 +15,10 @@ import {
   User as UserIcon
 } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
-import { db } from '../lib/firebase';
-import { collection, query, onSnapshot, updateDoc, doc, deleteDoc, serverTimestamp, orderBy } from 'firebase/firestore';
+import { supabase } from '../lib/supabase';
 import { Member, UserRole, VoiceSection } from '../types';
 import { handleFirestoreError, OperationType } from '../lib/error-handler';
-import { format, differenceInSeconds, addDays } from 'date-fns';
+import { format, differenceInSeconds, addDays, parseISO } from 'date-fns';
 
 const ROLE_RANK = {
   'Admin': 0,
@@ -45,12 +44,41 @@ export default function MemberDirectory() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const memberPath = 'members';
-    const unsub = onSnapshot(collection(db, memberPath), (snapshot) => {
-      setMembers(snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as Member)));
+    const fetchMembers = async () => {
+      const { data, error } = await supabase
+        .from('members')
+        .select('*');
+
+      if (data) {
+        setMembers(data.map(m => ({
+          uid: m.uid,
+          fullName: m.full_name,
+          role: m.role,
+          gender: m.gender,
+          voiceSection: m.voice_section,
+          status: m.status,
+          onboardingDate: m.onboarding_date,
+          oldMember: m.old_member,
+          pendingApproval: m.pending_approval,
+          avatarUrl: m.avatar_url
+        } as Member)));
+      }
       setLoading(false);
-    }, (err) => handleFirestoreError(err, OperationType.GET, memberPath));
-    return unsub;
+    };
+
+    fetchMembers();
+
+    // Subscribe to all changes in members table
+    const channel = supabase
+      .channel('public:members')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'members' }, payload => {
+        fetchMembers(); // Re-fetch to keep it simple or update state manually
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const filteredMembers = members.filter(m => {
@@ -60,15 +88,15 @@ export default function MemberDirectory() {
     return matchesSearch && matchesRole && matchesVoice;
   });
 
-  const officialMembers = filteredMembers.filter(m => m.status === 'Active' || !m.pendingApproval);
-  const trainees = filteredMembers.filter(m => m.status === 'Recrue Stagiaire' && m.pendingApproval);
+  const officialMembers = filteredMembers.filter(m => m.status === 'Active' && !m.pendingApproval);
+  const trainees = filteredMembers.filter(m => m.status === 'Recrue Stagiaire' || m.pendingApproval);
 
   const sortedOfficial = [...officialMembers].sort((a, b) => {
-    if (ROLE_RANK[a.role] !== ROLE_RANK[b.role]) {
-      return ROLE_RANK[a.role] - ROLE_RANK[b.role];
+    if (ROLE_RANK[a.role as keyof typeof ROLE_RANK] !== ROLE_RANK[b.role as keyof typeof ROLE_RANK]) {
+      return ROLE_RANK[a.role as keyof typeof ROLE_RANK] - ROLE_RANK[b.role as keyof typeof ROLE_RANK];
     }
-    const aVoice = a.voiceSection ? VOICE_RANK[a.voiceSection] : 99;
-    const bVoice = b.voiceSection ? VOICE_RANK[b.voiceSection] : 99;
+    const aVoice = a.voiceSection ? VOICE_RANK[a.voiceSection as keyof typeof VOICE_RANK] : 99;
+    const bVoice = b.voiceSection ? VOICE_RANK[b.voiceSection as keyof typeof VOICE_RANK] : 99;
     return aVoice - bVoice;
   });
 
@@ -76,35 +104,49 @@ export default function MemberDirectory() {
 
   const handleApprove = async (uid: string) => {
     if (!confirm("Are you sure you want to approve this member?")) return;
-    const path = `members/${uid}`;
     try {
-      await updateDoc(doc(db, 'members', uid), {
-        status: 'Active',
-        pendingApproval: false
-      });
+      await supabase
+        .from('members')
+        .update({
+          status: 'Active',
+          pending_approval: false
+        })
+        .eq('uid', uid);
     } catch (err) {
-      handleFirestoreError(err, OperationType.UPDATE, path);
+      handleFirestoreError(err, OperationType.UPDATE, `members/${uid}`);
     }
   };
 
   const handleDecline = async (uid: string) => {
     const memberToDecline = members.find(m => m.uid === uid);
     if (!confirm(`Are you sure you want to decline and remove ${memberToDecline?.fullName || 'this user'}? This will force them to start the registration process over.`)) return;
-    const path = `members/${uid}`;
     try {
-      await deleteDoc(doc(db, 'members', uid));
+      await supabase
+        .from('members')
+        .delete()
+        .eq('uid', uid);
       alert("Registration declined and record removed.");
     } catch (err) {
-      handleFirestoreError(err, OperationType.DELETE, path);
+      handleFirestoreError(err, OperationType.DELETE, `members/${uid}`);
     }
   };
 
   const handleUpdate = async (uid: string, data: any) => {
-    const path = `members/${uid}`;
     try {
-      await updateDoc(doc(db, 'members', uid), data);
+      // Map camelCase to snake_case for Supabase
+      const mappedData: any = {};
+      if (data.fullName !== undefined) mappedData.full_name = data.fullName;
+      if (data.voiceSection !== undefined) mappedData.voice_section = data.voiceSection;
+      if (data.role !== undefined) mappedData.role = data.role;
+      if (data.status !== undefined) mappedData.status = data.status;
+      if (data.onboardingDate !== undefined) mappedData.onboarding_date = data.onboardingDate;
+
+      await supabase
+        .from('members')
+        .update(mappedData)
+        .eq('uid', uid);
     } catch (err) {
-      handleFirestoreError(err, OperationType.UPDATE, path);
+      handleFirestoreError(err, OperationType.UPDATE, `members/${uid}`);
     }
   };
 
@@ -112,17 +154,19 @@ export default function MemberDirectory() {
     const member = members.find(m => m.uid === uid);
     if (!member) return;
     
-    const currentOnboarding = member.onboardingDate?.toDate() || new Date();
+    const currentOnboarding = typeof member.onboardingDate === 'string' ? parseISO(member.onboardingDate) : new Date();
     const newOnboarding = addDays(currentOnboarding, days);
     
-    const path = `members/${uid}`;
     try {
-      await updateDoc(doc(db, 'members', uid), {
-        onboardingDate: newOnboarding
-      });
+      await supabase
+        .from('members')
+        .update({
+          onboarding_date: newOnboarding.toISOString()
+        })
+        .eq('uid', uid);
       alert(`Probation extended by ${days} days.`);
     } catch (err) {
-      handleFirestoreError(err, OperationType.UPDATE, path);
+      handleFirestoreError(err, OperationType.UPDATE, `members/${uid}`);
     }
   };
 
@@ -272,7 +316,7 @@ function TraineeCard({
 
   useEffect(() => {
     const timer = setInterval(() => {
-      const joinDate = member.onboardingDate?.toDate() || new Date();
+      const joinDate = typeof member.onboardingDate === 'string' ? parseISO(member.onboardingDate) : new Date();
       const targetDate = addDays(joinDate, 90);
       const now = new Date();
       const seconds = differenceInSeconds(targetDate, now);
@@ -432,16 +476,18 @@ function MemberCard({
   const [formData, setFormData] = useState({ ...member });
 
   const handleUpdate = async () => {
-    const path = `members/${member.uid}`;
     try {
-      await updateDoc(doc(db, 'members', member.uid), {
-        fullName: formData.fullName,
-        role: formData.role,
-        voiceSection: formData.voiceSection
-      });
+      await supabase
+        .from('members')
+        .update({
+          full_name: formData.fullName,
+          role: formData.role,
+          voice_section: formData.voiceSection
+        })
+        .eq('uid', member.uid);
       setIsEditing(false);
     } catch (err) {
-      handleFirestoreError(err, OperationType.UPDATE, path);
+      handleFirestoreError(err, OperationType.UPDATE, `members/${member.uid}`);
     }
   };
 
@@ -585,7 +631,9 @@ function MemberRow({
         )}
       </td>
       <td className="p-6">
-        <p className="text-sm text-gray-400 font-sans">{format(member.onboardingDate?.toDate() || new Date(), 'MMM yy')}</p>
+        <p className="text-sm text-gray-400 font-sans">
+          {format(typeof member.onboardingDate === 'string' ? parseISO(member.onboardingDate) : new Date(), 'MMM yy')}
+        </p>
       </td>
       {isAdmin && (
         <td className="p-6">

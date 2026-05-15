@@ -10,9 +10,7 @@ import {
   Maximize2
 } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
-import { db, storage } from '../lib/firebase';
-import { collection, query, orderBy, onSnapshot, addDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
-import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
+import { supabase } from '../lib/supabase';
 import { GalleryPhoto } from '../types';
 
 export default function PhotoGallery() {
@@ -23,21 +21,52 @@ export default function PhotoGallery() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const q = query(collection(db, 'gallery'), orderBy('timestamp', 'desc'));
-    const unsub = onSnapshot(q, (snapshot) => {
-      setPhotos(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as GalleryPhoto)));
+    const fetchPhotos = async () => {
+      const { data, error } = await supabase
+        .from('gallery_photos')
+        .select('*')
+        .order('upload_date', { ascending: false });
+
+      if (data) {
+        setPhotos(data.map(p => ({
+          id: p.id,
+          url: p.url,
+          caption: p.caption,
+          timestamp: p.upload_date,
+          uploadedBy: p.uploaded_by
+        } as GalleryPhoto)));
+      }
       setLoading(false);
-    });
-    return unsub;
+    };
+
+    fetchPhotos();
+
+    // Subscribe to changes
+    const channel = supabase
+      .channel('public:gallery_photos')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'gallery_photos' }, payload => {
+        fetchPhotos();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const handleDelete = async (photo: GalleryPhoto) => {
     if (!confirm("Delete this photo?")) return;
     try {
-      await deleteObject(ref(storage, photo.url)).catch(console.error);
-      await deleteDoc(doc(db, 'gallery', photo.id));
+      if (photo.url) {
+        const path = photo.url.split('/public/choir_files/')[1];
+        if (path) {
+          await supabase.storage.from('choir_files').remove([path]);
+        }
+      }
+      await supabase.from('gallery_photos').delete().eq('id', photo.id);
     } catch (e) {
       console.error(e);
+      alert("Error deleting photo.");
     }
   };
 
@@ -121,7 +150,7 @@ export default function PhotoGallery() {
       </AnimatePresence>
 
       {isModalOpen && (
-        <PhotoUploadModal onClose={() => setIsModalOpen(false)} uid={user?.uid || ''} />
+        <PhotoUploadModal onClose={() => setIsModalOpen(false)} uid={user?.id || ''} />
       )}
     </div>
   );
@@ -130,7 +159,6 @@ export default function PhotoGallery() {
 function PhotoUploadModal({ onClose, uid }: { onClose: () => void, uid: string }) {
   const [caption, setCaption] = useState('');
   const [file, setFile] = useState<File | null>(null);
-  const [progress, setProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
 
   const handleUpload = async () => {
@@ -138,28 +166,29 @@ function PhotoUploadModal({ onClose, uid }: { onClose: () => void, uid: string }
     setIsUploading(true);
     try {
       const timestamp = Date.now();
-      const storageRef = ref(storage, `choir_files/gallery/${timestamp}_${file.name}`);
-      const uploadTask = uploadBytesResumable(storageRef, file);
+      const filePath = `gallery/${timestamp}_${file.name}`;
+      
+      const { data, error } = await supabase.storage
+        .from('choir_files')
+        .upload(filePath, file);
 
-      await new Promise((resolve, reject) => {
-        uploadTask.on('state_changed', 
-          (snap) => setProgress((snap.bytesTransferred / snap.totalBytes) * 100),
-          reject,
-          async () => {
-            const url = await getDownloadURL(uploadTask.snapshot.ref);
-            await addDoc(collection(db, 'gallery'), {
-              url,
-              caption,
-              timestamp: serverTimestamp(),
-              uploadedBy: uid
-            });
-            resolve(null);
-          }
-        );
+      if (error) throw error;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('choir_files')
+        .getPublicUrl(filePath);
+
+      const { error: dbError } = await supabase.from('gallery_photos').insert({
+        url: publicUrl,
+        caption,
+        uploaded_by: uid
       });
+
+      if (dbError) throw dbError;
       onClose();
     } catch (e) {
       console.error(e);
+      alert("Error uploading photo.");
     } finally {
       setIsUploading(false);
     }
@@ -211,7 +240,7 @@ function PhotoUploadModal({ onClose, uid }: { onClose: () => void, uid: string }
 
             {isUploading && (
               <div className="h-2 w-full bg-gray-100 rounded-full overflow-hidden">
-                <div className="h-full bg-black transition-all" style={{ width: `${progress}%` }} />
+                <div className="h-full bg-black animate-pulse" style={{ width: '100%' }} />
               </div>
             )}
           </div>

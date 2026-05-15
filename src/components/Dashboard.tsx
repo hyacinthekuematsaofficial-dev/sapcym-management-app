@@ -15,10 +15,9 @@ import {
   CalendarCheck
 } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
-import { db } from '../lib/firebase';
-import { collection, query, limit, getDocs, orderBy, onSnapshot } from 'firebase/firestore';
+import { supabase } from '../lib/supabase';
 import { Announcement, Member } from '../types';
-import { format, addDays, nextWednesday, nextSaturday, isSameDay, setHours, setMinutes, isBefore, differenceInSeconds } from 'date-fns';
+import { format, addDays, nextWednesday, nextSaturday, isSameDay, setHours, setMinutes, isBefore, differenceInSeconds, parseISO } from 'date-fns';
 import { handleFirestoreError, OperationType } from '../lib/error-handler';
 import { Link } from 'react-router-dom';
 
@@ -49,12 +48,44 @@ export default function Dashboard() {
   const [probationTime, setProbationTime] = useState('');
   const nextPractice = getNextPractice();
 
+  const fetchStats = async () => {
+    const { data: membersData } = await supabase
+      .from('members')
+      .select('*');
+    
+    if (membersData) {
+      setStats({
+        total: membersData.length,
+        active: membersData.filter(m => m.status === 'Active').length,
+        probationary: membersData.filter(m => m.status === 'Recrue Stagiaire').length
+      });
+    }
+  };
+
+  const fetchAnnouncements = async () => {
+    const { data: annData } = await supabase
+      .from('announcements')
+      .select('*')
+      .order('timestamp', { ascending: false })
+      .limit(5);
+
+    if (annData) {
+      setAnnouncements(annData.map(ann => ({
+        id: ann.id,
+        title: ann.title,
+        content: ann.content,
+        authorName: ann.author_name,
+        timestamp: ann.timestamp
+      } as Announcement)));
+    }
+  };
+
   useEffect(() => {
     // Probation Counter
     let timer: NodeJS.Timeout;
     if (member?.pendingApproval) {
       timer = setInterval(() => {
-        const joinDate = member.onboardingDate?.toDate() || new Date();
+        const joinDate = member.onboardingDate ? (typeof member.onboardingDate === 'string' ? parseISO(member.onboardingDate) : member.onboardingDate) : new Date();
         const targetDate = addDays(joinDate, 90);
         const seconds = differenceInSeconds(targetDate, new Date());
         
@@ -68,35 +99,36 @@ export default function Dashboard() {
         }
       }, 1000);
     }
-    // Recent Announcements
-    const annPath = 'announcements';
-    const annQuery = query(collection(db, annPath), orderBy('timestamp', 'desc'), limit(5));
-    const unsubAnn = onSnapshot(annQuery, (snapshot) => {
-      setAnnouncements(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Announcement)));
-    }, (err) => handleFirestoreError(err, OperationType.GET, annPath));
 
-    // Stats
-    const memberPath = 'members';
-    const unsubMembers = onSnapshot(collection(db, memberPath), (snapshot) => {
-      const members = snapshot.docs.map(doc => doc.data() as Member);
-      setStats({
-        total: members.length,
-        active: members.filter(m => m.status === 'Active').length,
-        probationary: members.filter(m => m.status === 'Recrue Stagiaire').length
-      });
+    // Initial Data Fetch
+    const initData = async () => {
+      setLoading(true);
+      await Promise.all([fetchStats(), fetchAnnouncements()]);
       setLoading(false);
-    }, (err) => handleFirestoreError(err, OperationType.GET, memberPath));
+    };
+    initData();
+
+    // Subscriptions
+    const annChannel = supabase
+      .channel('announcements_dashboard')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'announcements' }, fetchAnnouncements)
+      .subscribe();
+
+    const memberChannel = supabase
+      .channel('members_dashboard')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'members' }, fetchStats)
+      .subscribe();
 
     return () => {
-      unsubAnn();
-      unsubMembers();
+      supabase.removeChannel(annChannel);
+      supabase.removeChannel(memberChannel);
       if (timer) clearInterval(timer);
     };
   }, [member?.uid]);
 
   if (loading) return (
-    <div className="p-16 flex flex-col items-center justify-center gap-4 text-brand-blue/20">
-      <div className="w-12 h-12 border-4 border-brand-blue/20 border-t-brand-blue rounded-full animate-spin" />
+    <div className="p-16 flex flex-col items-center justify-center gap-4 text-black/20">
+      <div className="w-12 h-12 border-4 border-black/20 border-t-black rounded-full animate-spin" />
       <p className="font-serif italic text-2xl font-bold">Syncing with heavens...</p>
     </div>
   );
