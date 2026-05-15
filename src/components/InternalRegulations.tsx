@@ -10,8 +10,9 @@ import {
   FileText
 } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
-import { db } from '../lib/firebase';
+import { db, storage } from '../lib/firebase';
 import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
+import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import ReactMarkdown from 'react-markdown';
 
 const DEFAULT_CONTENT = `
@@ -39,6 +40,9 @@ export default function InternalRegulations() {
   const [editedPdfUrl, setEditedPdfUrl] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+
+  const [displayMode, setDisplayMode] = useState<'text' | 'pdf'>('text');
 
   useEffect(() => {
     const unsub = onSnapshot(doc(db, 'settings', 'regulations'), (docSnap) => {
@@ -46,6 +50,7 @@ export default function InternalRegulations() {
         const data = docSnap.data();
         setContent(data.content || DEFAULT_CONTENT);
         setPdfUrl(data.pdfUrl || '');
+        if (data.pdfUrl) setDisplayMode('pdf');
       } else {
         setContent(DEFAULT_CONTENT);
         setPdfUrl('');
@@ -54,6 +59,35 @@ export default function InternalRegulations() {
     });
     return unsub;
   }, []);
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.type !== 'application/pdf') {
+      alert("Please upload a PDF document.");
+      return;
+    }
+
+    const storageRef = ref(storage, `settings/regulations/official_document.pdf`);
+    const uploadTask = uploadBytesResumable(storageRef, file);
+
+    uploadTask.on('state_changed', 
+      (snapshot) => {
+        const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+        setUploadProgress(progress);
+      },
+      (error) => {
+        console.error("Upload error:", error);
+        alert("Upload failed. Make sure Firebase Storage is enabled.");
+      },
+      async () => {
+        const url = await getDownloadURL(uploadTask.snapshot.ref);
+        setEditedPdfUrl(url);
+        setUploadProgress(0);
+      }
+    );
+  };
 
   const handleSave = async () => {
     setSaving(true);
@@ -113,15 +147,41 @@ export default function InternalRegulations() {
               Markdown Editor Mode
             </div>
 
-            <div className="space-y-2">
-              <label className="text-[10px] uppercase font-bold tracking-widest text-gray-400">PDF Document URL (Optional)</label>
-              <input 
-                type="url"
-                placeholder="https://example.com/document.pdf"
-                className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:border-black font-sans text-sm"
-                value={editedPdfUrl}
-                onChange={e => setEditedPdfUrl(e.target.value)}
-              />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <label className="text-[10px] uppercase font-bold tracking-widest text-gray-400">PDF Document (Bucket Upload)</label>
+                <div className="relative">
+                  <input 
+                    type="file"
+                    accept=".pdf"
+                    onChange={handleFileUpload}
+                    className="absolute inset-0 opacity-0 cursor-pointer z-10"
+                  />
+                  <div className={`p-4 bg-gray-50 border border-gray-100 rounded-2xl flex items-center gap-4 transition-all ${uploadProgress > 0 ? 'border-brand-blue' : ''}`}>
+                    {uploadProgress > 0 ? (
+                      <Loader2 className="animate-spin text-brand-blue" size={20} />
+                    ) : (
+                      <FileText className="text-gray-400" size={20} />
+                    )}
+                    <div className="flex-1">
+                      <p className="text-xs font-bold text-gray-500">
+                        {uploadProgress > 0 ? `Uploading: ${Math.round(uploadProgress)}%` : 'Choose PDF Document'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[10px] uppercase font-bold tracking-widest text-gray-400">PDF URL Manually</label>
+                <input 
+                  type="url"
+                  placeholder="https://example.com/document.pdf"
+                  className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:border-black font-sans text-sm"
+                  value={editedPdfUrl}
+                  onChange={e => setEditedPdfUrl(e.target.value)}
+                />
+              </div>
             </div>
 
             <div className="space-y-2">
@@ -152,31 +212,56 @@ export default function InternalRegulations() {
           </div>
         ) : (
           <div className="space-y-12 relative z-10 font-sans">
-            {pdfUrl && (
-              <a 
-                href={pdfUrl} 
-                target="_blank" 
-                rel="noreferrer"
-                className="flex items-center justify-between p-8 bg-black text-white rounded-[2rem] hover:scale-[1.01] transition-all group"
+            <div className="flex border-b border-gray-100 mb-8">
+              <button 
+                onClick={() => setDisplayMode('pdf')}
+                className={`flex-1 py-4 text-xs uppercase font-bold tracking-widest transition-all border-b-2 ${displayMode === 'pdf' ? 'border-black text-black' : 'border-transparent text-gray-400'}`}
+                disabled={!pdfUrl}
               >
-                <div className="flex items-center gap-6">
-                  <div className="p-4 bg-white/10 rounded-2xl">
-                    <FileText size={32} />
-                  </div>
-                  <div>
-                    <p className="text-[10px] uppercase font-black tracking-widest text-white/40">Official Document</p>
-                    <h3 className="text-xl font-bold tracking-tight">View PDF Edition</h3>
-                  </div>
-                </div>
-                <Edit3 className="opacity-0 group-hover:opacity-100 transition-opacity" />
-              </a>
-            )}
-
-            <div className="prose prose-neutral max-w-none">
-              <div className="markdown-body">
-                <ReactMarkdown>{content}</ReactMarkdown>
-              </div>
+                PDF Document
+              </button>
+              <button 
+                onClick={() => setDisplayMode('text')}
+                className={`flex-1 py-4 text-xs uppercase font-bold tracking-widest transition-all border-b-2 ${displayMode === 'text' ? 'border-black text-black' : 'border-transparent text-gray-400'}`}
+              >
+                Text Version
+              </button>
             </div>
+
+            {displayMode === 'pdf' && pdfUrl ? (
+              <div className="space-y-6 animate-in fade-in duration-500">
+                <a 
+                  href={pdfUrl} 
+                  target="_blank" 
+                  rel="noreferrer"
+                  className="flex items-center justify-between p-8 bg-black text-white rounded-[2rem] hover:scale-[1.01] transition-all group"
+                >
+                  <div className="flex items-center gap-6">
+                    <div className="p-4 bg-white/10 rounded-2xl">
+                      <FileText size={32} />
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase font-black tracking-widest text-white/40">Official Document</p>
+                      <h3 className="text-xl font-bold tracking-tight">Open Full PDF Edition</h3>
+                    </div>
+                  </div>
+                  <Edit3 className="opacity-0 group-hover:opacity-100 transition-opacity" />
+                </a>
+                <div className="aspect-[4/5] bg-gray-50 rounded-[2rem] border border-gray-100 p-4 overflow-hidden">
+                  <iframe 
+                    src={`${pdfUrl}#view=FitH`} 
+                    className="w-full h-full rounded-2xl"
+                    title="PDF Viewer"
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="prose prose-neutral max-w-none animate-in fade-in duration-500">
+                <div className="markdown-body">
+                  <ReactMarkdown>{content}</ReactMarkdown>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

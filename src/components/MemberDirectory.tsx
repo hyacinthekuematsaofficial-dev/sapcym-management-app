@@ -88,10 +88,12 @@ export default function MemberDirectory() {
   };
 
   const handleDecline = async (uid: string) => {
-    if (!confirm("Decline and remove this application?")) return;
+    const memberToDecline = members.find(m => m.uid === uid);
+    if (!confirm(`Are you sure you want to decline and remove ${memberToDecline?.fullName || 'this user'}? This will force them to start the registration process over.`)) return;
     const path = `members/${uid}`;
     try {
       await deleteDoc(doc(db, 'members', uid));
+      alert("Registration declined and record removed.");
     } catch (err) {
       handleFirestoreError(err, OperationType.DELETE, path);
     }

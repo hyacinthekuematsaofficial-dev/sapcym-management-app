@@ -14,8 +14,48 @@ import InternalRegulations from './components/InternalRegulations';
 import Onboarding from './components/Onboarding';
 import LandingPage from './components/LandingPage';
 
+import { ShieldCheck, LogOut, Clock, ShieldAlert } from 'lucide-react';
+import { auth } from './lib/firebase';
+
+function PendingApproval() {
+  const { member } = useAuth();
+  return (
+    <div className="min-h-screen bg-[#F5F5F3] flex items-center justify-center p-6">
+      <div className="max-w-xl w-full bg-white rounded-[3rem] p-12 shadow-2xl border border-gray-100 text-center space-y-10 animate-in zoom-in duration-500">
+        <div className="w-24 h-24 bg-orange-100 text-orange-600 rounded-[2.5rem] flex items-center justify-center mx-auto shadow-lg shadow-orange-100">
+          <Clock size={48} className="animate-pulse" />
+        </div>
+        <div className="space-y-4">
+          <h1 className="text-4xl font-serif font-black tracking-tighter text-brand-blue italic leading-tight">
+            Account Pending <br/> Confirmation
+          </h1>
+          <p className="text-gray-500 font-sans leading-relaxed text-lg">
+            Welcome, <span className="font-bold text-brand-blue">{member?.fullName}</span>. Your registration for SAPCYM is currently being reviewed by the Executive Committee. 
+          </p>
+        </div>
+        <div className="p-8 bg-orange-50 border border-orange-100 rounded-[2rem] space-y-3">
+          <div className="flex items-center justify-center gap-2 text-orange-700 font-bold text-xs uppercase tracking-widest">
+            <ShieldAlert size={16} />
+            Waiting for Admin Action
+          </div>
+          <p className="text-xs text-orange-600/70 font-medium leading-relaxed">
+            Please check back soon. Once an administrator approves your account, you will have complete access to all member features, directory, and music library.
+          </p>
+        </div>
+        <button 
+          onClick={() => auth.signOut()}
+          className="w-full py-5 bg-gray-100 text-gray-500 rounded-2xl font-bold text-[10px] uppercase tracking-[0.2em] hover:bg-red-50 hover:text-red-600 transition-all flex items-center justify-center gap-3 border border-gray-100"
+        >
+          <LogOut size={16} />
+          Sign Out & Check Later
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function AppContent() {
-  const { user, member, loading } = useAuth();
+  const { user, member, loading, isAdmin } = useAuth();
 
   if (loading) {
     return (
@@ -37,6 +77,10 @@ function AppContent() {
 
   if (!member) {
     return <Onboarding />;
+  }
+
+  if (member.pendingApproval && !isAdmin) {
+    return <PendingApproval />;
   }
 
   return (
