@@ -46,7 +46,7 @@ export default function LandingPage() {
 
           <button 
             onClick={signInWithGoogle}
-            className="px-6 py-2.5 bg-black text-white rounded-full font-bold text-sm tracking-tight hover:scale-105 active:scale-95 transition-all shadow-lg flex items-center gap-2"
+            className="px-6 py-2.5 bg-brand-blue text-white rounded-full font-bold text-sm tracking-tight hover:scale-105 active:scale-95 transition-all shadow-lg flex items-center gap-2"
           >
             Enter Portal
             <ArrowRight size={16} />

@@ -33,17 +33,22 @@ Sheet music and recordings are for ministry use only.
 export default function InternalRegulations() {
   const { isAdmin } = useAuth();
   const [content, setContent] = useState('');
+  const [pdfUrl, setPdfUrl] = useState('');
   const [isEditing, setIsEditing] = useState(false);
   const [editedContent, setEditedContent] = useState('');
+  const [editedPdfUrl, setEditedPdfUrl] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     const unsub = onSnapshot(doc(db, 'settings', 'regulations'), (docSnap) => {
       if (docSnap.exists()) {
-        setContent(docSnap.data().content);
+        const data = docSnap.data();
+        setContent(data.content || DEFAULT_CONTENT);
+        setPdfUrl(data.pdfUrl || '');
       } else {
         setContent(DEFAULT_CONTENT);
+        setPdfUrl('');
       }
       setLoading(false);
     });
@@ -55,6 +60,7 @@ export default function InternalRegulations() {
     try {
       await setDoc(doc(db, 'settings', 'regulations'), {
         content: editedContent,
+        pdfUrl: editedPdfUrl,
         updatedAt: new Date()
       });
       setIsEditing(false);
@@ -67,6 +73,7 @@ export default function InternalRegulations() {
 
   const startEditing = () => {
     setEditedContent(content);
+    setEditedPdfUrl(pdfUrl);
     setIsEditing(true);
   };
 
@@ -105,12 +112,27 @@ export default function InternalRegulations() {
               <ShieldAlert size={14} />
               Markdown Editor Mode
             </div>
-            <textarea 
-              autoFocus
-              className="w-full h-[600px] p-8 bg-gray-50 border border-gray-100 rounded-3xl outline-none focus:border-black font-mono text-sm leading-relaxed"
-              value={editedContent}
-              onChange={e => setEditedContent(e.target.value)}
-            />
+
+            <div className="space-y-2">
+              <label className="text-[10px] uppercase font-bold tracking-widest text-gray-400">PDF Document URL (Optional)</label>
+              <input 
+                type="url"
+                placeholder="https://example.com/document.pdf"
+                className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:border-black font-sans text-sm"
+                value={editedPdfUrl}
+                onChange={e => setEditedPdfUrl(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-[10px] uppercase font-bold tracking-widest text-gray-400">Regulation Text (Paste Markdown)</label>
+              <textarea 
+                className="w-full h-[500px] p-8 bg-gray-50 border border-gray-100 rounded-3xl outline-none focus:border-black font-mono text-sm leading-relaxed"
+                value={editedContent}
+                onChange={e => setEditedContent(e.target.value)}
+              />
+            </div>
+
             <div className="flex gap-4">
               <button 
                 onClick={handleSave}
@@ -129,9 +151,31 @@ export default function InternalRegulations() {
             </div>
           </div>
         ) : (
-          <div className="prose prose-neutral max-w-none relative z-10 font-sans">
-            <div className="markdown-body">
-              <ReactMarkdown>{content}</ReactMarkdown>
+          <div className="space-y-12 relative z-10 font-sans">
+            {pdfUrl && (
+              <a 
+                href={pdfUrl} 
+                target="_blank" 
+                rel="noreferrer"
+                className="flex items-center justify-between p-8 bg-black text-white rounded-[2rem] hover:scale-[1.01] transition-all group"
+              >
+                <div className="flex items-center gap-6">
+                  <div className="p-4 bg-white/10 rounded-2xl">
+                    <FileText size={32} />
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase font-black tracking-widest text-white/40">Official Document</p>
+                    <h3 className="text-xl font-bold tracking-tight">View PDF Edition</h3>
+                  </div>
+                </div>
+                <Edit3 className="opacity-0 group-hover:opacity-100 transition-opacity" />
+              </a>
+            )}
+
+            <div className="prose prose-neutral max-w-none">
+              <div className="markdown-body">
+                <ReactMarkdown>{content}</ReactMarkdown>
+              </div>
             </div>
           </div>
         )}

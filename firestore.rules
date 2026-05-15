@@ -57,10 +57,10 @@ service cloud.firestore {
                data.pendingApproval is bool;
       }
 
-      allow read: if isVerified();
+      allow read: if isSignedIn();
       
       // Updated create rule to allow Old Members and Super Admins
-      allow create: if isVerified() && isOwner(userId) && 
+      allow create: if isSignedIn() && isOwner(userId) && 
                       isValidMember(incoming()) && 
                       (
                         isSuperAdmin() || 
@@ -68,7 +68,7 @@ service cloud.firestore {
                       ) &&
                       incoming().onboardingDate == request.time;
       
-      allow update: if isVerified() && (
+      allow update: if isSignedIn() && (
         // Admin can update everything
         (isAdmin() && isValidMember(incoming())) ||
         // User can update their own non-sensitive fields
@@ -155,7 +155,7 @@ service cloud.firestore {
                data.timestamp == request.time;
       }
 
-      allow read: if isVerified();
+      allow read: if true;
       allow create: if isExecutive() && isValidId(annId) && isValidAnnouncement(incoming());
       allow update: if isExecutive() && isValidAnnouncement(incoming());
       allow delete: if isAdmin() || isExecutive();
@@ -181,7 +181,7 @@ service cloud.firestore {
                data.timestamp == request.time;
       }
 
-      allow read: if isVerified();
+      allow read: if true;
       allow create: if isExecutive() && isValidId(photoId) && isValidPhoto(incoming());
       allow update: if isExecutive() && isValidPhoto(incoming());
       allow delete: if isAdmin() || isExecutive();

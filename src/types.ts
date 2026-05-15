@@ -31,6 +31,7 @@ export interface Song {
   scoreUrl?: string;
   lyricsUrl?: string;
   audioUrl?: string;
+  lyricsText?: string;
   uploadedBy: string;
 }
 

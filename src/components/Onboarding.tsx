@@ -89,10 +89,10 @@ export default function Onboarding() {
                   <UserPlus size={40} />
                 </div>
                 <h1 className="text-5xl font-serif font-black tracking-tighter text-brand-blue italic leading-none">
-                  Join the Ministry
+                  St. Peter & Paul <br/> Simbock
                 </h1>
                 <p className="text-lg text-brand-blue/50 font-sans leading-relaxed">
-                  Brothers & Sisters, step forward to serve the Almighty with your voice and dedication. 
+                  Join the ministry of Saint Peter and Paul Anglophone Parish situated at Simbock. 
                 </p>
               </div>
 
@@ -124,10 +124,10 @@ export default function Onboarding() {
                     value={formData.voiceSection}
                     onChange={e => setFormData({ ...formData, voiceSection: e.target.value as VoiceSection })}
                   >
-                    <option value="Soprano">Soprano</option>
-                    <option value="Alto">Alto</option>
-                    <option value="Ténor">Ténor</option>
-                    <option value="Basse">Basse</option>
+                    <option value="Soprano">Soprano (Women)</option>
+                    <option value="Alto">Alto (Women)</option>
+                    <option value="Ténor">Ténor (Men)</option>
+                    <option value="Basse">Basse (Men)</option>
                   </select>
                 </div>
               </div>
@@ -217,10 +217,10 @@ export default function Onboarding() {
               </div>
               <div className="space-y-4">
                 <h1 className="text-5xl font-serif font-black tracking-tighter text-brand-blue italic leading-none">
-                  Application <br /> Pending Approval
+                  Record Saved. <br /> Pending Approval.
                 </h1>
                 <p className="text-lg text-brand-blue/50 max-w-sm mx-auto leading-relaxed">
-                  Your registration has been sent to the Executive Committee for review. You will gain full access once your record is validated.
+                  Your registration for the Saint Peter and Paul Anglophone Parish (Simbock) has been sent to the Executive Committee. 
                 </p>
               </div>
 

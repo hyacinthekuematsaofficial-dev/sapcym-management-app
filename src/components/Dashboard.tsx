@@ -8,23 +8,66 @@ import {
   Megaphone,
   ArrowRight,
   Plus,
-  LayoutDashboard
+  LayoutDashboard,
+  Clock,
+  MapPin,
+  ShieldAlert,
+  CalendarCheck
 } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
 import { db } from '../lib/firebase';
 import { collection, query, limit, getDocs, orderBy, onSnapshot } from 'firebase/firestore';
 import { Announcement, Member } from '../types';
-import { format } from 'date-fns';
+import { format, addDays, nextWednesday, nextSaturday, isSameDay, setHours, setMinutes, isBefore, differenceInSeconds } from 'date-fns';
 import { handleFirestoreError, OperationType } from '../lib/error-handler';
 import { Link } from 'react-router-dom';
+
+function getNextPractice() {
+  const now = new Date();
+  
+  const wed = setMinutes(setHours(nextWednesday(now), 17), 0);
+  const sat = setMinutes(setHours(nextSaturday(now), 16), 0);
+  
+  // Also check if today is Wed or Sat and practice hasn't happened yet
+  let todayWed = setMinutes(setHours(new Date(), 17), 0);
+  let todaySat = setMinutes(setHours(new Date(), 16), 0);
+  
+  const candidates = [];
+  if (now.getDay() === 3 && isBefore(now, todayWed)) candidates.push(todayWed);
+  if (now.getDay() === 6 && isBefore(now, todaySat)) candidates.push(todaySat);
+  candidates.push(wed, sat);
+  
+  candidates.sort((a, b) => a.getTime() - b.getTime());
+  return candidates[0];
+}
 
 export default function Dashboard() {
   const { member, isAdmin, isExecutive, isMusicDirector } = useAuth();
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [stats, setStats] = useState({ total: 0, active: 0, probationary: 0 });
   const [loading, setLoading] = useState(true);
+  const [probationTime, setProbationTime] = useState('');
+  const nextPractice = getNextPractice();
 
   useEffect(() => {
+    // Probation Counter
+    let timer: NodeJS.Timeout;
+    if (member?.pendingApproval) {
+      timer = setInterval(() => {
+        const joinDate = member.onboardingDate?.toDate() || new Date();
+        const targetDate = addDays(joinDate, 90);
+        const seconds = differenceInSeconds(targetDate, new Date());
+        
+        if (seconds <= 0) {
+          setProbationTime('Reviewing Membership Status...');
+        } else {
+          const d = Math.floor(seconds / (24 * 3600));
+          const h = Math.floor((seconds % (24 * 3600)) / 3600);
+          const m = Math.floor((seconds % 3600) / 60);
+          setProbationTime(`${d} Days, ${h}h ${m}m remaining`);
+        }
+      }, 1000);
+    }
     // Recent Announcements
     const annPath = 'announcements';
     const annQuery = query(collection(db, annPath), orderBy('timestamp', 'desc'), limit(5));
@@ -47,8 +90,9 @@ export default function Dashboard() {
     return () => {
       unsubAnn();
       unsubMembers();
+      if (timer) clearInterval(timer);
     };
-  }, []);
+  }, [member?.uid]);
 
   if (loading) return (
     <div className="p-16 flex flex-col items-center justify-center gap-4 text-brand-blue/20">
@@ -65,34 +109,83 @@ export default function Dashboard() {
             <LayoutDashboard size={14} />
             Ministry Overview
           </div>
-          <h1 className="text-7xl lg:text-8xl font-serif font-black tracking-tighter text-brand-blue leading-[0.85]">
+          <h1 className="text-5xl lg:text-7xl xl:text-8xl font-serif font-black tracking-tighter text-brand-blue leading-[0.85]">
             Welcome home, <br />
             <span className="italic opacity-30">{member?.gender === 'Female' ? 'Sister' : 'Brother'} {member?.fullName.split(' ')[0]}.</span>
           </h1>
-          <p className="text-lg text-brand-blue/40 max-w-xl font-sans font-medium">
+          <p className="text-base lg:text-lg text-brand-blue/40 max-w-xl font-sans font-medium">
              Serving the Saint Peter and Paul Anglophone Parish situated at Simbock. Today is {format(new Date(), 'EEEE, MMMM dd')}.
           </p>
         </div>
         
         <div className="flex flex-wrap gap-4">
-          <div className="p-8 bg-white border border-gray-100 rounded-[2.5rem] shadow-sm flex flex-col items-center justify-center min-w-[160px] group hover:border-brand-blue/20 transition-all">
+          <div className="p-6 lg:p-8 bg-white border border-gray-100 rounded-[2.5rem] shadow-sm flex flex-col items-center justify-center min-w-[140px] group hover:border-brand-blue/20 transition-all">
             <p className="text-[10px] font-black uppercase tracking-widest text-brand-blue/20 mb-3">Status</p>
-            <p className={`font-serif font-bold text-2xl tracking-tight transition-colors ${member?.status === 'Active' ? 'text-green-600' : 'text-orange-500'}`}>
+            <p className={`font-serif font-bold text-xl lg:text-2xl tracking-tight transition-colors ${member?.status === 'Active' ? 'text-green-600' : 'text-orange-500'}`}>
               {member?.status}
             </p>
           </div>
-          <div className="p-8 bg-white border border-gray-100 rounded-[2.5rem] shadow-sm flex flex-col items-center justify-center min-w-[160px] group hover:border-brand-blue/20 transition-all">
+          <div className="p-6 lg:p-8 bg-white border border-gray-100 rounded-[2.5rem] shadow-sm flex flex-col items-center justify-center min-w-[140px] group hover:border-brand-blue/20 transition-all">
              <p className="text-[10px] font-black uppercase tracking-widest text-brand-blue/20 mb-3">Role</p>
-             <p className="font-serif font-bold text-2xl text-brand-blue tracking-tight">{isAdmin ? 'Admin' : member?.role}</p>
+             <p className="font-serif font-bold text-xl lg:text-2xl text-brand-blue tracking-tight">{isAdmin ? 'Admin' : member?.role}</p>
           </div>
         </div>
       </header>
+
+      {/* Probation Banner */}
+      {member?.pendingApproval && (
+        <div className="bg-orange-50 border border-orange-100 rounded-[2.5rem] p-8 lg:p-12 flex flex-col md:flex-row items-center justify-between gap-8 animate-in slide-in-from-top duration-500">
+          <div className="flex items-center gap-6">
+            <div className="w-16 h-16 rounded-3xl bg-orange-500 text-white flex items-center justify-center shadow-lg shadow-orange-200">
+              <ShieldAlert size={32} />
+            </div>
+            <div className="space-y-1">
+              <h2 className="text-2xl font-serif font-bold text-orange-900 italic tracking-tight">Probationary Period</h2>
+              <p className="text-orange-700/60 font-sans text-sm font-medium">Your account is pending executive validation.</p>
+            </div>
+          </div>
+          <div className="bg-white/60 backdrop-blur px-8 py-5 rounded-3xl border border-orange-100 flex flex-col items-center">
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-orange-700 mb-1">Time Remaining</p>
+            <p className="font-mono text-lg font-bold text-orange-900 tracking-tighter">{probationTime}</p>
+          </div>
+        </div>
+      )}
+
+      {/* Practice Alert */}
+      <div className="bg-white border-4 border-brand-blue/10 rounded-[3.5rem] p-8 lg:p-12 flex flex-col lg:flex-row items-center justify-between gap-8 relative overflow-hidden group">
+        <div className="absolute right-0 top-0 p-12 opacity-[0.03] group-hover:scale-110 transition-transform">
+          <CalendarCheck size={200} />
+        </div>
+        <div className="flex flex-col md:flex-row items-center gap-8 relative z-10 text-center md:text-left">
+          <div className="w-20 h-20 rounded-[2.5rem] bg-brand-blue text-white flex items-center justify-center shadow-2xl shadow-brand-blue/20">
+            <Clock size={32} />
+          </div>
+          <div className="space-y-2">
+            <p className="text-[10px] font-black uppercase tracking-[0.3em] text-brand-blue/30">Next Choir Practice</p>
+            <h3 className="text-3xl lg:text-4xl font-serif font-bold text-brand-blue italic tracking-tighter leading-none">
+              {format(nextPractice, 'EEEE, MMMM dd')} <span className="opacity-30">@ {format(nextPractice, 'HH:mm')}</span>
+            </h3>
+            <div className="flex items-center justify-center md:justify-start gap-2 text-brand-blue/50 text-sm font-medium">
+              <MapPin size={16} />
+              Behind the church at Simbock
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center gap-4 relative z-10">
+          <div className="px-6 py-3 bg-brand-blue/5 rounded-2xl border border-brand-blue/10">
+            <p className="text-[9px] font-black uppercase tracking-widest text-brand-blue/40 text-center mb-1">Countdown</p>
+            <p className="font-mono text-sm font-bold text-brand-blue">
+              In {Math.round(differenceInSeconds(nextPractice, new Date()) / 3600)} Hours
+            </p>
+          </div>
+        </div>
+      </div>
 
       {/* Grid Content */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         {/* Main Feed */}
         <div className="lg:col-span-8 space-y-8">
-          <div className="bg-black text-white rounded-[3.5rem] p-12 overflow-hidden relative group min-h-[500px]">
+          <div className="bg-brand-blue text-white rounded-[3.5rem] p-12 overflow-hidden relative group min-h-[500px]">
             <div className="absolute top-0 right-0 p-12 opacity-10 group-hover:scale-110 transition-transform duration-700">
               <Megaphone size={200} />
             </div>

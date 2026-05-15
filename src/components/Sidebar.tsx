@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, 
@@ -12,11 +12,13 @@ import {
   BookOpen,
   LogOut,
   User as UserIcon,
-  ShieldCheck
+  ShieldCheck,
+  Menu,
+  X
 } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
 import { auth } from '../lib/firebase';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 
 interface SidebarItemProps {
   to: string;
@@ -46,32 +48,48 @@ const SidebarItem: React.FC<SidebarItemProps> = ({ to, icon, label, badge }) => 
 export default function Sidebar() {
   const { member, isExecutive, isAdmin } = useAuth();
   const navigate = useNavigate();
+  const [isOpen, setIsOpen] = useState(false);
 
   const handleLogout = () => {
     auth.signOut();
     navigate('/');
   };
 
-  return (
-    <div className="w-80 h-screen bg-white border-r border-gray-100 flex flex-col p-6 sticky top-0">
+  const menu = (
+    <div className="flex flex-col h-full">
       <div className="mb-12 px-2 flex items-center gap-3">
-        <div className="w-10 h-10 bg-brand-blue rounded-xl flex items-center justify-center text-white">
+        <div className="w-10 h-10 bg-brand-blue rounded-xl flex items-center justify-center text-white shrink-0">
           <ShieldCheck size={24} />
         </div>
         <div>
-          <h1 className="text-2xl font-serif font-black tracking-tighter leading-none text-brand-blue">SAPCYM</h1>
-          <p className="text-[10px] uppercase font-bold tracking-widest text-brand-blue/30 mt-1">Management Portal</p>
+          <h1 className="text-xl font-serif font-black tracking-tighter leading-[0.85] text-brand-blue">St. Peter & Paul <br/> Simbock</h1>
+          <p className="text-[10px] uppercase font-bold tracking-widest text-brand-blue/30 mt-1">Ministry Portal</p>
         </div>
       </div>
 
       <nav className="flex-1 space-y-2 overflow-y-auto custom-scrollbar pr-2">
         <SidebarItem to="/" icon={<LayoutDashboard size={22} />} label="Dashboard" />
-        <SidebarItem to="/members" icon={<Users size={22} />} label="Directory" />
-        <SidebarItem to="/songs" icon={<Music size={22} />} label="Music Library" />
-        <SidebarItem to="/attendance" icon={<CalendarCheck size={22} />} label="Attendance" />
-        <SidebarItem to="/chat" icon={<MessageSquare size={22} />} label="Advanced Chat" />
         
-        {isExecutive && (
+        {!member?.pendingApproval && (
+          <>
+            <SidebarItem to="/members" icon={<Users size={22} />} label="Directory" />
+            <SidebarItem to="/songs" icon={<Music size={22} />} label="Music Library" />
+            <SidebarItem to="/attendance" icon={<CalendarCheck size={22} />} label="Attendance" />
+            <SidebarItem to="/chat" icon={<MessageSquare size={22} />} label="Advanced Chat" />
+          </>
+        )}
+
+        {member?.pendingApproval && (
+          <>
+            <SidebarItem to="/songs" icon={<Music size={22} />} label="Music Library" />
+            <div className="px-6 py-4 bg-orange-50/50 rounded-2xl border border-orange-100/50">
+               <p className="text-[10px] font-bold text-orange-600 uppercase tracking-widest leading-tight">Visitor Access</p>
+               <p className="text-[9px] text-orange-400 font-medium">Limited features until approved.</p>
+            </div>
+          </>
+        )}
+        
+        {isExecutive && !member?.pendingApproval && (
           <>
             <div className="pt-4 pb-2 px-6">
               <span className="text-[10px] uppercase font-bold tracking-widest text-gray-400">Administration</span>
@@ -118,5 +136,54 @@ export default function Sidebar() {
         </button>
       </div>
     </div>
+  );
+
+  return (
+    <>
+      {/* Mobile Toggle */}
+      <div className="lg:hidden fixed top-4 left-4 z-50">
+        <button 
+          onClick={() => setIsOpen(!isOpen)}
+          className="p-3 bg-brand-blue text-white rounded-2xl shadow-xl hover:scale-105 active:scale-95 transition-all"
+        >
+          {isOpen ? <X size={24} /> : <Menu size={24} />}
+        </button>
+      </div>
+
+      {/* Desktop Sidebar */}
+      <aside className="hidden lg:flex w-80 h-screen bg-white border-r border-gray-100 flex-col p-6 sticky top-0 shrink-0">
+        {menu}
+      </aside>
+
+      {/* Mobile Sidebar Overlay */}
+      <AnimatePresence>
+        {isOpen && (
+          <>
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsOpen(false)}
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 lg:hidden"
+            />
+            <motion.aside 
+              initial={{ x: '-100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '-100%' }}
+              transition={{ type: 'spring', damping: 20 }}
+              className="fixed inset-y-0 left-0 w-[85%] max-w-sm bg-white z-50 p-6 shadow-2xl lg:hidden flex flex-col"
+            >
+              <button 
+                onClick={() => setIsOpen(false)}
+                className="absolute top-6 right-6 p-2 text-gray-400 hover:text-black"
+              >
+                <X size={24} />
+              </button>
+              {menu}
+            </motion.aside>
+          </>
+        )}
+      </AnimatePresence>
+    </>
   );
 }

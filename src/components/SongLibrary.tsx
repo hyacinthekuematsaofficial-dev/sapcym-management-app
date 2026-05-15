@@ -102,6 +102,7 @@ function SongCard({ song, canManage }: { song: Song, canManage: boolean }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [progress, setProgress] = useState(0);
+  const [showLyrics, setShowLyrics] = useState(false);
 
   const togglePlay = () => {
     if (audioRef.current) {
@@ -190,10 +191,44 @@ function SongCard({ song, canManage }: { song: Song, canManage: boolean }) {
               className="flex items-center gap-3 p-4 rounded-2xl bg-gray-50 border border-gray-100 hover:bg-black hover:text-white transition-all group/btn"
             >
               <ImageIcon size={18} />
-              <span className="text-xs font-bold uppercase tracking-widest">Lyrics</span>
+              <span className="text-xs font-bold uppercase tracking-widest">Image</span>
             </a>
           )}
+          {song.lyricsText && (
+            <button 
+              onClick={() => setShowLyrics(true)}
+              className="flex items-center gap-3 p-4 rounded-2xl bg-gray-50 border border-gray-100 hover:bg-black hover:text-white transition-all group/btn"
+            >
+              <FileText size={18} />
+              <span className="text-xs font-bold uppercase tracking-widest">Lyrics</span>
+            </button>
+          )}
         </div>
+
+        {/* Lyrics Viewer Modal */}
+        <AnimatePresence>
+          {showLyrics && (
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-6">
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                className="bg-white rounded-[3rem] w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col shadow-2xl"
+              >
+                <div className="p-8 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+                  <div>
+                    <h2 className="text-2xl font-bold tracking-tighter italic">{song.title}</h2>
+                    <p className="text-xs text-gray-400 font-sans">Song Lyrics</p>
+                  </div>
+                  <button onClick={() => setShowLyrics(false)} className="p-2 hover:bg-white rounded-full transition-colors"><X size={24} /></button>
+                </div>
+                <div className="p-12 overflow-y-auto custom-scrollbar font-sans leading-relaxed text-lg whitespace-pre-wrap text-gray-700">
+                  {song.lyricsText}
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
 
         {/* Audio Player */}
         {song.audioUrl && (
@@ -235,6 +270,7 @@ function UploadModal({ onClose, uid }: { onClose: () => void, uid: string }) {
   const [title, setTitle] = useState('');
   const [composer, setComposer] = useState('');
   const [musicalKey, setMusicalKey] = useState('');
+  const [lyricsText, setLyricsText] = useState('');
   const [files, setFiles] = useState<{ score: File | null, lyrics: File | null, audio: File | null }>({
     score: null,
     lyrics: null,
@@ -283,6 +319,7 @@ function UploadModal({ onClose, uid }: { onClose: () => void, uid: string }) {
         title,
         composer,
         musicalKey,
+        lyricsText,
         uploadDate: serverTimestamp(),
         uploadedBy: uid,
         ...urls
@@ -310,7 +347,7 @@ function UploadModal({ onClose, uid }: { onClose: () => void, uid: string }) {
             <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full transition-colors"><X size={24} /></button>
           </div>
 
-          <div className="grid grid-cols-2 gap-8">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 max-h-[60vh] overflow-y-auto pr-4 custom-scrollbar">
             <div className="space-y-6">
               <div className="space-y-2">
                 <label className="text-[10px] uppercase font-bold tracking-widest text-gray-400">Song Title</label>
@@ -337,6 +374,16 @@ function UploadModal({ onClose, uid }: { onClose: () => void, uid: string }) {
                   value={musicalKey}
                   onChange={e => setMusicalKey(e.target.value)}
                   placeholder="e.g. G Major"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] uppercase font-bold tracking-widest text-gray-400">Lyrics (Paste Text)</label>
+                <textarea 
+                  rows={6}
+                  className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:border-black font-sans resize-none"
+                  value={lyricsText}
+                  onChange={e => setLyricsText(e.target.value)}
+                  placeholder="Paste song lyrics here..."
                 />
               </div>
             </div>

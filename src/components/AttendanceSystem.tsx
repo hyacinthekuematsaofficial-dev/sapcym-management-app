@@ -56,16 +56,20 @@ export default function AttendanceSystem() {
     setIsSaving(true);
     try {
       const today = new Date();
+      const isPracticeDay = today.getDay() === 3 || today.getDay() === 6;
+      const sessionType = isPracticeDay ? "Choir Practice" : "General Session";
+
       for (const [uid, status] of Object.entries(attendance)) {
         const recordId = `${format(today, 'yyyy-MM-dd')}_${uid}`;
         await setDoc(doc(db, 'attendance', recordId), {
           date: today,
           memberId: uid,
           status,
+          sessionType,
           markedBy: currentMember?.uid
         });
       }
-      alert("Attendance saved successfully!");
+      alert(`Attendance for ${sessionType} saved successfully!`);
       fetchData();
       generatePDF(today);
     } catch (e) {
@@ -150,7 +154,9 @@ export default function AttendanceSystem() {
       {mode === 'marking' ? (
         <section className="bg-white border border-gray-100 rounded-[2.5rem] p-8 shadow-sm">
           <div className="flex items-center justify-between mb-12">
-            <h2 className="text-2xl font-bold tracking-tighter italic">Rehearsal Session: {format(new Date(), 'EEEE, do MMM')}</h2>
+            <h2 className="text-2xl font-bold tracking-tighter italic">
+              {(new Date().getDay() === 3 || new Date().getDay() === 6) ? "Choir Practice" : "Attendance Session"}: {format(new Date(), 'EEEE, do MMM')}
+            </h2>
             {(isMusicDirector || isAdmin) && (
               <button 
                 onClick={saveAttendance}

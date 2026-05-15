@@ -19,10 +19,13 @@ function AppContent() {
 
   if (loading) {
     return (
-      <div className="h-screen w-screen grid place-items-center bg-[#E4E3E0]">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-16 h-16 border-4 border-brand-blue border-t-transparent rounded-full animate-spin" />
-          <p className="font-mono text-xs uppercase font-bold tracking-widest text-gray-400">Initializing Portal...</p>
+      <div className="h-screen w-screen grid place-items-center bg-[#F5F5F3]">
+        <div className="flex flex-col items-center gap-6">
+          <div className="w-16 h-16 border-4 border-brand-blue/10 border-t-brand-blue rounded-full animate-spin" />
+          <div className="text-center space-y-1">
+            <p className="font-serif italic text-2xl font-bold text-brand-blue">Saint Peter & Paul Simbock</p>
+            <p className="font-mono text-[10px] uppercase font-bold tracking-[0.3em] text-brand-blue/40">Initializing Ministry Portal</p>
+          </div>
         </div>
       </div>
     );
@@ -38,11 +41,11 @@ function AppContent() {
 
   return (
     <Router>
-      <div className="flex min-h-screen bg-[#F5F5F3]">
+      <div className="flex flex-col lg:flex-row min-h-screen bg-[#F5F5F3]">
         <Sidebar />
-        <main className="flex-1 p-12 overflow-y-auto max-h-screen custom-scrollbar">
+        <main className="flex-1 p-6 lg:p-12 overflow-y-auto max-h-screen custom-scrollbar">
           <Routes>
-            <Route path="/" element={member.pendingApproval ? <Onboarding /> : <Dashboard />} />
+            <Route path="/" element={<Dashboard />} />
             <Route path="/members" element={<MemberDirectory />} />
             <Route path="/songs" element={<SongLibrary />} />
             <Route path="/attendance" element={<AttendanceSystem />} />

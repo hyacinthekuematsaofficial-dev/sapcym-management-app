@@ -74,6 +74,56 @@ export default function MemberDirectory() {
 
   if (loading) return <div className="p-8 animate-pulse text-gray-400">Loading directory...</div>;
 
+  const handleApprove = async (uid: string) => {
+    if (!confirm("Are you sure you want to approve this member?")) return;
+    const path = `members/${uid}`;
+    try {
+      await updateDoc(doc(db, 'members', uid), {
+        status: 'Active',
+        pendingApproval: false
+      });
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, path);
+    }
+  };
+
+  const handleDecline = async (uid: string) => {
+    if (!confirm("Decline and remove this application?")) return;
+    const path = `members/${uid}`;
+    try {
+      await deleteDoc(doc(db, 'members', uid));
+    } catch (err) {
+      handleFirestoreError(err, OperationType.DELETE, path);
+    }
+  };
+
+  const handleUpdate = async (uid: string, data: any) => {
+    const path = `members/${uid}`;
+    try {
+      await updateDoc(doc(db, 'members', uid), data);
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, path);
+    }
+  };
+
+  const handleExtendProbation = async (uid: string, days: number) => {
+    const member = members.find(m => m.uid === uid);
+    if (!member) return;
+    
+    const currentOnboarding = member.onboardingDate?.toDate() || new Date();
+    const newOnboarding = addDays(currentOnboarding, days);
+    
+    const path = `members/${uid}`;
+    try {
+      await updateDoc(doc(db, 'members', uid), {
+        onboardingDate: newOnboarding
+      });
+      alert(`Probation extended by ${days} days.`);
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, path);
+    }
+  };
+
   return (
     <div className="space-y-12">
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -120,7 +170,15 @@ export default function MemberDirectory() {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
             {trainees.map(m => (
-              <TraineeCard key={m.uid} member={m} isAdmin={isAdmin || isExecutive} />
+              <TraineeCard 
+                key={m.uid} 
+                member={m} 
+                isAdmin={isAdmin || isExecutive} 
+                onApprove={handleApprove}
+                onDecline={handleDecline}
+                onUpdate={handleUpdate}
+                onExtend={handleExtendProbation}
+              />
             ))}
           </div>
         </section>
@@ -151,7 +209,12 @@ export default function MemberDirectory() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
             <AnimatePresence>
               {sortedOfficial.map(m => (
-                <MemberCard key={m.uid} member={m} isAdmin={isAdmin} />
+                <MemberCard 
+                  key={m.uid} 
+                  member={m} 
+                  isAdmin={isAdmin} 
+                  onDecline={handleDecline}
+                />
               ))}
             </AnimatePresence>
           </div>
@@ -169,7 +232,12 @@ export default function MemberDirectory() {
               </thead>
               <tbody>
                 {sortedOfficial.map(m => (
-                  <MemberRow key={m.uid} member={m} isAdmin={isAdmin} />
+                  <MemberRow 
+                    key={m.uid} 
+                    member={m} 
+                    isAdmin={isAdmin} 
+                    onDecline={handleDecline}
+                  />
                 ))}
               </tbody>
             </table>
@@ -180,8 +248,24 @@ export default function MemberDirectory() {
   );
 }
 
-function TraineeCard({ member, isAdmin }: { member: Member, isAdmin: boolean }) {
+function TraineeCard({ 
+  member, 
+  isAdmin, 
+  onApprove, 
+  onDecline, 
+  onUpdate,
+  onExtend
+}: { 
+  member: Member, 
+  isAdmin: boolean,
+  onApprove: (uid: string) => void,
+  onDecline: (uid: string) => void,
+  onUpdate: (uid: string, data: any) => void,
+  onExtend: (uid: string, days: number) => void
+}) {
   const [timeLeft, setTimeLeft] = useState('');
+  const [isEditing, setIsEditing] = useState(false);
+  const [formData, setFormData] = useState({ ...member });
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -191,8 +275,7 @@ function TraineeCard({ member, isAdmin }: { member: Member, isAdmin: boolean }) 
       const seconds = differenceInSeconds(targetDate, now);
 
       if (seconds <= 0) {
-        setTimeLeft('Completed');
-        clearInterval(timer);
+        setTimeLeft('Under Review');
       } else {
         const d = Math.floor(seconds / (24 * 3600));
         const h = Math.floor((seconds % (24 * 3600)) / 3600);
@@ -205,6 +288,16 @@ function TraineeCard({ member, isAdmin }: { member: Member, isAdmin: boolean }) 
     return () => clearInterval(timer);
   }, [member.onboardingDate]);
 
+  const handleInternalUpdate = async () => {
+    await onUpdate(member.uid, {
+      fullName: formData.fullName,
+      voiceSection: formData.voiceSection,
+      role: formData.role,
+      status: formData.status
+    });
+    setIsEditing(false);
+  };
+
   return (
     <motion.div 
       initial={{ opacity: 0, scale: 0.95 }}
@@ -212,67 +305,126 @@ function TraineeCard({ member, isAdmin }: { member: Member, isAdmin: boolean }) 
       className="bg-white border border-gray-100 rounded-[2rem] p-8 shadow-md hover:shadow-xl transition-all relative group"
     >
       <div className="flex items-center gap-4 mb-6">
-        <div className="w-14 h-14 rounded-full bg-gray-50 border border-gray-100 flex items-center justify-center overflow-hidden">
+        <div className="w-14 h-14 rounded-full bg-gray-50 border border-gray-100 flex items-center justify-center overflow-hidden relative group/avatar">
           {member.avatarUrl ? <img src={member.avatarUrl} className="w-full h-full object-cover" /> : <UserIcon className="text-gray-300" />}
+          {isAdmin && (
+            <button 
+              onClick={() => setIsEditing(!isEditing)}
+              className="absolute inset-0 bg-black/40 opacity-0 group-hover/avatar:opacity-100 transition-opacity flex items-center justify-center text-white"
+            >
+              <Edit3 size={16} />
+            </button>
+          )}
         </div>
         <div>
-          <h3 className="font-bold tracking-tight italic">{member.fullName}</h3>
+          {isEditing ? (
+            <input 
+              className="font-bold tracking-tight italic bg-gray-50 border border-gray-100 rounded px-2 w-full text-sm"
+              value={formData.fullName}
+              onChange={e => setFormData({...formData, fullName: e.target.value})}
+            />
+          ) : (
+            <h3 className="font-bold tracking-tight italic">{member.fullName}</h3>
+          )}
           <p className="text-[10px] uppercase font-bold text-gray-400 tracking-widest">{member.voiceSection || 'No Section'}</p>
         </div>
       </div>
 
       <div className="space-y-4">
-        <div className="p-4 bg-orange-50 rounded-2xl border border-orange-100">
-          <p className="text-[9px] uppercase font-bold tracking-widest text-orange-600 mb-1">Probation Counter</p>
-          <p className="font-mono text-xs font-bold text-orange-900">{timeLeft}</p>
-        </div>
-
-        {isAdmin && (
-          <div className="flex gap-2">
-            <button 
-              onClick={() => handleApprove(member.uid)}
-              className="flex-1 bg-black text-white p-3 rounded-xl hover:bg-gray-800 transition-all flex items-center justify-center gap-2 group/btn"
+        {isEditing ? (
+          <div className="space-y-3">
+             <select 
+              className="w-full text-[10px] uppercase font-bold p-2 bg-gray-50 rounded-xl"
+              value={formData.voiceSection}
+              onChange={e => setFormData({...formData, voiceSection: e.target.value as VoiceSection})}
             >
-              <CheckCircle2 size={16} className="group-hover/btn:scale-110 transition-transform" />
-              <span className="text-xs font-bold uppercase tracking-widest">Approve</span>
-            </button>
-            <button 
-              onClick={() => handleDecline(member.uid)}
-              className="p-3 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 transition-all"
+              <option value="Soprano">Soprano</option>
+              <option value="Alto">Alto</option>
+              <option value="Ténor">Ténor</option>
+              <option value="Basse">Basse</option>
+            </select>
+            <select 
+              className="w-full text-[10px] uppercase font-bold p-2 bg-gray-50 rounded-xl"
+              value={formData.role}
+              onChange={e => setFormData({...formData, role: e.target.value as UserRole})}
             >
-              <XCircle size={18} />
-            </button>
+              <option value="Member">Member</option>
+              <option value="Music Director">Music Director</option>
+              <option value="Executive">Executive</option>
+              <option value="Admin">Admin</option>
+            </select>
+            <div className="grid grid-cols-2 gap-2">
+              <button 
+                onClick={handleInternalUpdate}
+                className="bg-black text-white p-2 rounded-xl text-[10px] font-bold uppercase"
+              >
+                Save
+              </button>
+              <button 
+                onClick={() => setIsEditing(false)}
+                className="bg-gray-100 text-gray-500 p-2 rounded-xl text-[10px] font-bold uppercase"
+              >
+                Cancel
+              </button>
+            </div>
           </div>
+        ) : (
+          <>
+            <div className="p-4 bg-orange-50 rounded-2xl border border-orange-100">
+              <p className="text-[9px] uppercase font-bold tracking-widest text-orange-600 mb-1">Probation Counter</p>
+              <p className="font-mono text-xs font-bold text-orange-900">{timeLeft}</p>
+            </div>
+
+            {isAdmin && (
+              <div className="space-y-3">
+                <div className="flex gap-2">
+                  <button 
+                    onClick={() => onApprove(member.uid)}
+                    className="flex-1 bg-black text-white p-3 rounded-xl hover:bg-gray-800 transition-all flex items-center justify-center gap-2 group/btn"
+                  >
+                    <CheckCircle2 size={16} className="group-hover/btn:scale-110 transition-transform" />
+                    <span className="text-xs font-bold uppercase tracking-widest">Approve</span>
+                  </button>
+                  <button 
+                    onClick={() => onDecline(member.uid)}
+                    className="p-3 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 transition-all"
+                  >
+                    <XCircle size={18} />
+                  </button>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-2 pt-2 border-t border-gray-50">
+                  <button 
+                    onClick={() => onExtend(member.uid, 30)}
+                    className="p-2 bg-gray-100 text-[9px] uppercase font-bold tracking-widest text-gray-500 rounded-lg hover:bg-brand-blue hover:text-white transition-all shadow-sm"
+                  >
+                    +30 Days
+                  </button>
+                  <button 
+                    onClick={() => onExtend(member.uid, 60)}
+                    className="p-2 bg-gray-100 text-[9px] uppercase font-bold tracking-widest text-gray-500 rounded-lg hover:bg-brand-blue hover:text-white transition-all shadow-sm"
+                  >
+                    +60 Days
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
     </motion.div>
   );
 }
 
-const handleApprove = async (uid: string) => {
-  if (!confirm("Are you sure you want to approve this member?")) return;
-  const path = `members/${uid}`;
-  try {
-    await updateDoc(doc(db, 'members', uid), {
-      status: 'Active',
-      pendingApproval: false
-    });
-  } catch (err) {
-    handleFirestoreError(err, OperationType.UPDATE, path);
-  }
-};
-
-const handleDecline = async (uid: string) => {
-  if (!confirm("Decline and remove this application?")) return;
-  const path = `members/${uid}`;
-  try {
-    await deleteDoc(doc(db, 'members', uid));
-  } catch (err) {
-    handleFirestoreError(err, OperationType.DELETE, path);
-  }
-};
-
-function MemberCard({ member, isAdmin }: { member: Member, isAdmin: boolean }) {
+function MemberCard({ 
+  member, 
+  isAdmin, 
+  onDecline 
+}: { 
+  member: Member, 
+  isAdmin: boolean,
+  onDecline: (uid: string) => void
+}) {
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({ ...member });
 
@@ -344,14 +496,22 @@ function MemberCard({ member, isAdmin }: { member: Member, isAdmin: boolean }) {
       {isAdmin && !isEditing && (
         <div className="mt-8 pt-6 border-t border-gray-50 flex justify-between items-center opacity-0 group-hover:opacity-100 transition-opacity">
           <span className="text-[9px] uppercase font-bold text-gray-300">ID: {member.uid.slice(0, 8)}</span>
-          <Trash2 size={16} className="text-red-400 hover:text-red-600" onClick={() => handleDecline(member.uid)} />
+          <Trash2 size={16} className="text-red-400 hover:text-red-600" onClick={() => onDecline(member.uid)} />
         </div>
       )}
     </motion.div>
   );
 }
 
-function MemberRow({ member, isAdmin }: { member: Member, isAdmin: boolean }) {
+function MemberRow({ 
+  member, 
+  isAdmin, 
+  onDecline 
+}: { 
+  member: Member, 
+  isAdmin: boolean,
+  onDecline: (uid: string) => void
+}) {
   return (
     <tr className="hover:bg-gray-50 transition-colors group">
       <td className="p-6">
@@ -380,7 +540,7 @@ function MemberRow({ member, isAdmin }: { member: Member, isAdmin: boolean }) {
         <td className="p-6">
           <div className="flex gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
             <Edit3 size={16} className="text-gray-400 hover:text-black cursor-pointer" />
-            <Trash2 size={16} className="text-red-300 hover:text-red-600 cursor-pointer" onClick={() => handleDecline(member.uid)} />
+            <Trash2 size={16} className="text-red-300 hover:text-red-600 cursor-pointer" onClick={() => onDecline(member.uid)} />
           </div>
         </td>
       )}
