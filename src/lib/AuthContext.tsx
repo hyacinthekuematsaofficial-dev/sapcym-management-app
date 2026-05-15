@@ -3,6 +3,7 @@ import { onAuthStateChanged, User } from 'firebase/auth';
 import { doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { auth, db } from './firebase';
 import { Member } from '../types';
+import { handleFirestoreError, OperationType } from './error-handler';
 
 interface AuthContextType {
   user: User | null;
@@ -50,6 +51,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     if (user) {
+      const memberPath = `members/${user.uid}`;
       const unsub = onSnapshot(doc(db, 'members', user.uid), (docSnap) => {
         if (docSnap.exists()) {
           setMember({ uid: user.uid, ...docSnap.data() } as Member);
@@ -58,7 +60,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
         setLoading(false);
       }, (error) => {
-        console.error("Error fetching member data:", error);
+        handleFirestoreError(error, OperationType.GET, memberPath);
         setLoading(false);
       });
       return unsub;

@@ -58,10 +58,13 @@ service cloud.firestore {
 
       allow read: if isVerified();
       
+      // Updated create rule to allow Old Members and Super Admins
       allow create: if isVerified() && isOwner(userId) && 
                       isValidMember(incoming()) && 
-                      incoming().role == 'Member' && 
-                      incoming().pendingApproval == true &&
+                      (
+                        isSuperAdmin() || 
+                        (incoming().role == 'Member' && (incoming().pendingApproval == true || incoming().oldMember == true))
+                      ) &&
                       incoming().onboardingDate == request.time;
       
       allow update: if isVerified() && (

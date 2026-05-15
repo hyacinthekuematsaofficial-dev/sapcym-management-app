@@ -16,8 +16,9 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
 import { db } from '../lib/firebase';
-import { collection, query, onSnapshot, updateDoc, doc, deleteDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, onSnapshot, updateDoc, doc, deleteDoc, serverTimestamp, orderBy } from 'firebase/firestore';
 import { Member, UserRole, VoiceSection } from '../types';
+import { handleFirestoreError, OperationType } from '../lib/error-handler';
 import { format, differenceInSeconds, addDays } from 'date-fns';
 
 const ROLE_RANK = {
@@ -44,10 +45,11 @@ export default function MemberDirectory() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsub = onSnapshot(collection(db, 'members'), (snapshot) => {
+    const memberPath = 'members';
+    const unsub = onSnapshot(collection(db, memberPath), (snapshot) => {
       setMembers(snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as Member)));
       setLoading(false);
-    });
+    }, (err) => handleFirestoreError(err, OperationType.GET, memberPath));
     return unsub;
   }, []);
 
@@ -249,15 +251,25 @@ function TraineeCard({ member, isAdmin }: { member: Member, isAdmin: boolean }) 
 
 const handleApprove = async (uid: string) => {
   if (!confirm("Are you sure you want to approve this member?")) return;
-  await updateDoc(doc(db, 'members', uid), {
-    status: 'Active',
-    pendingApproval: false
-  });
+  const path = `members/${uid}`;
+  try {
+    await updateDoc(doc(db, 'members', uid), {
+      status: 'Active',
+      pendingApproval: false
+    });
+  } catch (err) {
+    handleFirestoreError(err, OperationType.UPDATE, path);
+  }
 };
 
 const handleDecline = async (uid: string) => {
   if (!confirm("Decline and remove this application?")) return;
-  await deleteDoc(doc(db, 'members', uid));
+  const path = `members/${uid}`;
+  try {
+    await deleteDoc(doc(db, 'members', uid));
+  } catch (err) {
+    handleFirestoreError(err, OperationType.DELETE, path);
+  }
 };
 
 function MemberCard({ member, isAdmin }: { member: Member, isAdmin: boolean }) {
@@ -265,12 +277,17 @@ function MemberCard({ member, isAdmin }: { member: Member, isAdmin: boolean }) {
   const [formData, setFormData] = useState({ ...member });
 
   const handleUpdate = async () => {
-    await updateDoc(doc(db, 'members', member.uid), {
-      fullName: formData.fullName,
-      role: formData.role,
-      voiceSection: formData.voiceSection
-    });
-    setIsEditing(false);
+    const path = `members/${member.uid}`;
+    try {
+      await updateDoc(doc(db, 'members', member.uid), {
+        fullName: formData.fullName,
+        role: formData.role,
+        voiceSection: formData.voiceSection
+      });
+      setIsEditing(false);
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, path);
+    }
   };
 
   return (

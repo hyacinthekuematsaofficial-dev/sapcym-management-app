@@ -5,9 +5,10 @@ import { useAuth } from '../lib/AuthContext';
 import { auth, db, signInWithGoogle } from '../lib/firebase';
 import { setDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { UserRole, VoiceSection } from '../types';
+import { handleFirestoreError, OperationType } from '../lib/error-handler';
 
 export default function Onboarding() {
-  const { user, member, loading } = useAuth();
+  const { user, member, loading, isSuperAdmin } = useAuth();
   const [step, setStep] = useState(1);
   const [formData, setFormData] = useState({
     fullName: '',
@@ -29,35 +30,37 @@ export default function Onboarding() {
 
     try {
       const onboardingDate = new Date();
-      const status = formData.oldMember ? 'Active' : 'Recrue Stagiaire';
-      const pendingApproval = !formData.oldMember; // Old members are active immediately according to spec? 
-      // Spec says: "Old Member (checkbox selected) Active immediately No countdown timer"
-      // Wait, "New members remain in pending/probationary state until approved by Admin or Executive"
-      // I'll assume Old Members still need approval but don't have the countdown? 
-      // Actually, "Old Member ... Active immediately". I'll follow that.
+      const status = (formData.oldMember || isSuperAdmin) ? 'Active' : 'Recrue Stagiaire';
+      const role = isSuperAdmin ? 'Admin' : 'Member';
+      const pendingApproval = !(formData.oldMember || isSuperAdmin);
 
-      await setDoc(doc(db, 'members', user.uid), {
-        fullName: formData.fullName,
-        role: 'Member', // Initial role is always Member until admin promotes
-        voiceSection: formData.voiceSection,
-        status: status,
-        onboardingDate: serverTimestamp(),
-        oldMember: formData.oldMember,
-        pendingApproval: !formData.oldMember,
-        avatarUrl: user.photoURL,
-      });
+      const memberPath = `members/${user.uid}`;
+      try {
+        await setDoc(doc(db, 'members', user.uid), {
+          fullName: formData.fullName,
+          role: role,
+          voiceSection: formData.voiceSection,
+          status: status,
+          onboardingDate: serverTimestamp(),
+          oldMember: formData.oldMember,
+          pendingApproval: pendingApproval,
+          avatarUrl: user.photoURL,
+        });
 
-      await setDoc(doc(db, 'members', user.uid, 'private', 'data'), {
-        email: user.email,
-        phone: formData.phone,
-        address: formData.address,
-        profession: formData.profession,
-      });
+        await setDoc(doc(db, 'members', user.uid, 'private', 'data'), {
+          email: user.email,
+          phone: formData.phone,
+          address: formData.address,
+          profession: formData.profession,
+        });
+      } catch (err) {
+        handleFirestoreError(err, OperationType.WRITE, memberPath);
+      }
 
       setStep(3);
     } catch (error) {
       console.error("Registration error:", error);
-      alert("Failed to register. Please try again.");
+      alert(error instanceof Error ? error.message : "Failed to register. Please try again.");
     } finally {
       setIsSubmitting(false);
     }

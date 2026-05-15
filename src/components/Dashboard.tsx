@@ -14,6 +14,7 @@ import { db } from '../lib/firebase';
 import { collection, query, limit, getDocs, orderBy, onSnapshot } from 'firebase/firestore';
 import { Announcement, Member } from '../types';
 import { format } from 'date-fns';
+import { handleFirestoreError, OperationType } from '../lib/error-handler';
 import { 
   BarChart, 
   Bar, 
@@ -34,13 +35,15 @@ export default function Dashboard() {
 
   useEffect(() => {
     // Recent Announcements
-    const annQuery = query(collection(db, 'announcements'), orderBy('timestamp', 'desc'), limit(5));
+    const annPath = 'announcements';
+    const annQuery = query(collection(db, annPath), orderBy('timestamp', 'desc'), limit(5));
     const unsubAnn = onSnapshot(annQuery, (snapshot) => {
       setAnnouncements(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Announcement)));
-    });
+    }, (err) => handleFirestoreError(err, OperationType.GET, annPath));
 
     // Stats
-    const unsubMembers = onSnapshot(collection(db, 'members'), (snapshot) => {
+    const memberPath = 'members';
+    const unsubMembers = onSnapshot(collection(db, memberPath), (snapshot) => {
       const members = snapshot.docs.map(doc => doc.data() as Member);
       setStats({
         total: members.length,
@@ -48,7 +51,7 @@ export default function Dashboard() {
         probationary: members.filter(m => m.status === 'Recrue Stagiaire').length
       });
       setLoading(false);
-    });
+    }, (err) => handleFirestoreError(err, OperationType.GET, memberPath));
 
     return () => {
       unsubAnn();
