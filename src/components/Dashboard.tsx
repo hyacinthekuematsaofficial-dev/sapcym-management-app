@@ -7,7 +7,8 @@ import {
   Music, 
   Megaphone,
   ArrowRight,
-  Plus
+  Plus,
+  LayoutDashboard
 } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
 import { db } from '../lib/firebase';
@@ -15,16 +16,6 @@ import { collection, query, limit, getDocs, orderBy, onSnapshot } from 'firebase
 import { Announcement, Member } from '../types';
 import { format } from 'date-fns';
 import { handleFirestoreError, OperationType } from '../lib/error-handler';
-import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  ResponsiveContainer, 
-  Cell 
-} from 'recharts';
 import { Link } from 'react-router-dom';
 
 export default function Dashboard() {
@@ -59,117 +50,134 @@ export default function Dashboard() {
     };
   }, []);
 
-  const chartData = [
-    { name: 'Active', value: stats.active, color: '#000' },
-    { name: 'Probationary', value: stats.probationary, color: '#9ca3af' },
-  ];
-
-  if (loading) return <div className="p-8 animate-pulse text-gray-400">Loading metrics...</div>;
+  if (loading) return (
+    <div className="p-16 flex flex-col items-center justify-center gap-4 text-brand-blue/20">
+      <div className="w-12 h-12 border-4 border-brand-blue/20 border-t-brand-blue rounded-full animate-spin" />
+      <p className="font-serif italic text-2xl font-bold">Syncing with heavens...</p>
+    </div>
+  );
 
   return (
-    <div className="space-y-12">
-      {/* Header section with greeting */}
-      <section className="flex flex-col md:flex-row md:items-end justify-between gap-6">
-        <div>
-          <motion.h1 
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="text-6xl font-bold tracking-tighter font-sans leading-none"
-          >
-            Hello, {member?.fullName.split(' ')[0]}.
-          </motion.h1>
-          <p className="text-gray-400 mt-4 text-xl font-sans">
-            Here's what's happening in <span className="text-black font-bold">SAPCYM</span> today.
+    <div className="space-y-16 max-w-7xl animate-in fade-in duration-700">
+      <header className="flex flex-col lg:flex-row lg:items-end justify-between gap-12 py-8 relative">
+        <div className="space-y-6">
+          <div className="inline-flex items-center gap-3 px-4 py-2 bg-brand-blue/5 rounded-full text-brand-blue text-[10px] uppercase font-black tracking-widest border border-brand-blue/10">
+            <LayoutDashboard size={14} />
+            Ministry Overview
+          </div>
+          <h1 className="text-7xl lg:text-8xl font-serif font-black tracking-tighter text-brand-blue leading-[0.85]">
+            Welcome home, <br />
+            <span className="italic opacity-30">{member?.gender === 'Female' ? 'Sister' : 'Brother'} {member?.fullName.split(' ')[0]}.</span>
+          </h1>
+          <p className="text-lg text-brand-blue/40 max-w-xl font-sans font-medium">
+             Serving the Saint Peter and Paul Anglophone Parish situated at Simbock. Today is {format(new Date(), 'EEEE, MMMM dd')}.
           </p>
         </div>
         
-        <div className="flex gap-4">
-          {isMusicDirector && (
-            <Link to="/songs" className="bg-black text-white px-6 py-4 rounded-2xl flex items-center gap-3 hover:scale-105 transition-transform">
-              <Plus size={20} />
-              <span className="font-bold text-sm uppercase tracking-widest">Share Music</span>
-            </Link>
-          )}
-          {isExecutive && (
-            <Link to="/announcements" className="border border-black px-6 py-4 rounded-2xl flex items-center gap-3 hover:bg-black hover:text-white transition-all">
-              <Plus size={20} />
-              <span className="font-bold text-sm uppercase tracking-widest">Add Announcement</span>
-            </Link>
-          )}
-        </div>
-      </section>
-
-      {/* Metrics Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-8">
-          <MetricCard icon={<Users size={24} />} label="Total Members" value={stats.total} color="bg-gray-100" />
-          <MetricCard icon={<UserCheck size={24} />} label="Active" value={stats.active} color="bg-black text-white" />
-          <MetricCard icon={<UserPlus size={24} />} label="Probation" value={stats.probationary} color="bg-gray-50 border border-gray-100" />
-          
-          <div className="sm:col-span-3 h-80 bg-white border border-gray-100 rounded-[2.5rem] p-8 shadow-sm">
-            <h3 className="text-xs uppercase font-bold tracking-[0.2em] text-gray-400 mb-8">Membership Distribution</h3>
-            <ResponsiveContainer width="100%" height="80%">
-              <BarChart data={chartData} layout="vertical" barSize={32}>
-                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f0f0f0" />
-                <XAxis type="number" hide />
-                <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} width={100} fontSize={12} fontWeight="bold" />
-                <Tooltip 
-                  cursor={{ fill: '#f8f8f8' }}
-                  contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 30px rgba(0,0,0,0.1)' }}
-                />
-                <Bar dataKey="value" radius={[0, 8, 8, 0]}>
-                  {chartData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+        <div className="flex flex-wrap gap-4">
+          <div className="p-8 bg-white border border-gray-100 rounded-[2.5rem] shadow-sm flex flex-col items-center justify-center min-w-[160px] group hover:border-brand-blue/20 transition-all">
+            <p className="text-[10px] font-black uppercase tracking-widest text-brand-blue/20 mb-3">Status</p>
+            <p className={`font-serif font-bold text-2xl tracking-tight transition-colors ${member?.status === 'Active' ? 'text-green-600' : 'text-orange-500'}`}>
+              {member?.status}
+            </p>
+          </div>
+          <div className="p-8 bg-white border border-gray-100 rounded-[2.5rem] shadow-sm flex flex-col items-center justify-center min-w-[160px] group hover:border-brand-blue/20 transition-all">
+             <p className="text-[10px] font-black uppercase tracking-widest text-brand-blue/20 mb-3">Role</p>
+             <p className="font-serif font-bold text-2xl text-brand-blue tracking-tight">{isAdmin ? 'Admin' : member?.role}</p>
           </div>
         </div>
+      </header>
 
-        {/* Recent Announcements */}
-        <div className="bg-white border border-gray-100 rounded-[2.5rem] p-8 shadow-sm h-full flex flex-col">
-          <div className="flex items-center justify-between mb-8">
-            <h3 className="text-xs uppercase font-bold tracking-[0.2em] text-gray-400">Latest Bulletins</h3>
-            <Link to="/announcements" className="text-black hover:translate-x-1 transition-transform">
-              <ArrowRight size={20} />
-            </Link>
-          </div>
-          
-          <div className="space-y-6 flex-1">
-            {announcements.length > 0 ? announcements.map((ann) => (
-              <div key={ann.id} className="group cursor-pointer">
-                <p className="text-[10px] text-gray-400 uppercase font-bold tracking-widest mb-1 italic">
-                  {format(ann.timestamp?.toDate() || new Date(), 'MMM dd, yyyy')}
-                </p>
-                <h4 className="font-bold group-hover:underline italic leading-tight">{ann.title}</h4>
-                <p className="text-sm text-gray-500 line-clamp-2 mt-1 font-sans">{ann.content}</p>
+      {/* Grid Content */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        {/* Main Feed */}
+        <div className="lg:col-span-8 space-y-8">
+          <div className="bg-black text-white rounded-[3.5rem] p-12 overflow-hidden relative group min-h-[500px]">
+            <div className="absolute top-0 right-0 p-12 opacity-10 group-hover:scale-110 transition-transform duration-700">
+              <Megaphone size={200} />
+            </div>
+            <div className="relative z-10 space-y-8">
+              <div className="flex items-center justify-between">
+                <h2 className="text-3xl font-serif font-bold italic tracking-tight">Recent Announcements</h2>
+                <div className="px-4 py-2 bg-white/10 backdrop-blur-md rounded-xl text-xs font-bold uppercase tracking-widest">
+                  Live Feed
+                </div>
               </div>
-            )) : (
-              <p className="text-gray-400 text-sm italic">No recent updates.</p>
-            )}
+              
+              <div className="space-y-6">
+                {announcements.map((ann) => (
+                  <div key={ann.id} className="p-8 bg-white/5 backdrop-blur-md rounded-3xl border border-white/10 hover:bg-white/10 transition-all">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-white/40 mb-3">
+                      {ann.timestamp ? format(ann.timestamp.toDate(), 'MMM dd, HH:mm') : 'Recently'}
+                    </p>
+                    <h3 className="text-xl font-bold tracking-tight mb-2">{ann.title}</h3>
+                    <p className="text-sm text-white/60 line-clamp-2 leading-relaxed">{ann.content}</p>
+                  </div>
+                ))}
+                {announcements.length === 0 && (
+                  <div className="h-40 flex items-center justify-center text-white/20 italic">
+                    No recent updates in the feed.
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Sidebar Stats */}
+        <div className="lg:col-span-4 space-y-8">
+          <div className="bg-white border border-gray-100 rounded-[3.5rem] p-10 space-y-10 shadow-sm">
+            <div className="space-y-2">
+              <h3 className="text-2xl font-serif font-bold text-brand-blue italic tracking-tight">Community</h3>
+              <p className="text-[10px] font-black uppercase tracking-widest text-brand-blue/20">Growth Metrics</p>
+            </div>
+
+            <div className="grid grid-cols-1 gap-6">
+              <div className="p-6 bg-gray-50 rounded-3xl space-y-2 group hover:bg-brand-blue/5 transition-all">
+                <p className="text-[10px] font-black uppercase tracking-widest text-brand-blue/30">Total Brothers</p>
+                <div className="flex items-end justify-between">
+                  <p className="text-4xl font-serif font-bold text-brand-blue">{stats.total}</p>
+                  <Users className="text-brand-blue/10 group-hover:text-brand-blue/20 transition-colors" size={32} />
+                </div>
+              </div>
+
+              <div className="p-6 bg-gray-50 rounded-3xl space-y-2 group hover:bg-brand-blue/5 transition-all">
+                <p className="text-[10px] font-black uppercase tracking-widest text-brand-blue/30">Active Members</p>
+                <div className="flex items-end justify-between">
+                  <p className="text-4xl font-serif font-bold text-green-600">{stats.active}</p>
+                  <div className="w-12 h-1 bg-green-100 rounded-full overflow-hidden">
+                    <div className="h-full bg-green-500" style={{ width: `${stats.total > 0 ? (stats.active / stats.total) * 100 : 0}%` }} />
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-6 bg-gray-50 rounded-3xl space-y-2 group hover:bg-brand-blue/5 transition-all">
+                <p className="text-[10px] font-black uppercase tracking-widest text-brand-blue/30">New Recruits</p>
+                <div className="flex items-end justify-between">
+                  <p className="text-4xl font-serif font-bold text-orange-500">{stats.probationary}</p>
+                  <p className="text-xs font-bold text-orange-400">Probationary</p>
+                </div>
+              </div>
+            </div>
           </div>
           
-          {announcements.length > 0 && (
-            <Link to="/announcements" className="mt-8 pt-6 border-t border-gray-50 text-center font-bold text-xs uppercase tracking-widest hover:text-gray-600">
-              View All Bulletins
-            </Link>
-          )}
+          <div className="p-10 bg-gray-50 rounded-[3rem] border border-gray-100 space-y-6">
+             <div className="flex items-center gap-4">
+                <div className="p-3 bg-brand-blue text-white rounded-xl">
+                  <Music size={20} />
+                </div>
+                <h4 className="font-serif font-bold text-xl text-brand-blue">Direct Actions</h4>
+             </div>
+             <div className="space-y-3">
+                <Link to="/attendance" className="flex items-center justify-between p-4 bg-white rounded-2xl border border-gray-100 hover:border-brand-blue/30 transition-all font-bold text-xs uppercase tracking-widest text-brand-blue group">
+                   Log Attendance <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
+                </Link>
+                <Link to="/chat" className="flex items-center justify-between p-4 bg-white rounded-2xl border border-gray-100 hover:border-brand-blue/30 transition-all font-bold text-xs uppercase tracking-widest text-brand-blue group">
+                   Open Chat <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
+                </Link>
+             </div>
+          </div>
         </div>
-      </div>
-    </div>
-  );
-}
-
-function MetricCard({ icon, label, value, color }: { icon: any, label: string, value: number, color?: string }) {
-  return (
-    <div className={`${color || 'bg-white'} rounded-[2.5rem] p-8 border border-gray-100 shadow-sm flex flex-col gap-4 group`}>
-      <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center border border-white/10">
-        {icon}
-      </div>
-      <div>
-        <p className="text-[10px] uppercase font-bold tracking-[0.2em] opacity-60 mb-1">{label}</p>
-        <p className="text-4xl font-mono tracking-tighter font-bold">{value}</p>
       </div>
     </div>
   );

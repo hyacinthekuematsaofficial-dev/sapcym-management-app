@@ -30,13 +30,13 @@ const SidebarItem: React.FC<SidebarItemProps> = ({ to, icon, label, badge }) => 
     to={to}
     className={({ isActive }) => `
       flex items-center gap-4 px-6 py-4 rounded-2xl transition-all duration-300 group relative
-      ${isActive ? 'bg-black text-white shadow-lg translate-x-2' : 'hover:bg-gray-100 text-gray-500 hover:text-black'}
+      ${isActive ? 'bg-brand-blue text-white shadow-lg translate-x-2' : 'hover:bg-gray-100 text-gray-500 hover:text-brand-blue'}
     `}
   >
     <span className="shrink-0">{icon}</span>
-    <span className="font-medium tracking-tight font-sans">{label}</span>
+    <span className="font-bold tracking-tight font-sans text-sm">{label}</span>
     {badge && (
-      <span className="ml-auto bg-black text-white text-[10px] px-2 py-0.5 rounded-full font-bold">
+      <span className="ml-auto bg-brand-blue text-white text-[10px] px-2 py-0.5 rounded-full font-bold">
         {badge}
       </span>
     )}
@@ -55,12 +55,12 @@ export default function Sidebar() {
   return (
     <div className="w-80 h-screen bg-white border-r border-gray-100 flex flex-col p-6 sticky top-0">
       <div className="mb-12 px-2 flex items-center gap-3">
-        <div className="w-10 h-10 bg-black rounded-xl flex items-center justify-center text-white">
+        <div className="w-10 h-10 bg-brand-blue rounded-xl flex items-center justify-center text-white">
           <ShieldCheck size={24} />
         </div>
         <div>
-          <h1 className="text-xl font-bold tracking-tighter leading-none">SAPCYM</h1>
-          <p className="text-[10px] uppercase font-bold tracking-widest text-gray-400 mt-1">Management Portal</p>
+          <h1 className="text-2xl font-serif font-black tracking-tighter leading-none text-brand-blue">SAPCYM</h1>
+          <p className="text-[10px] uppercase font-bold tracking-widest text-brand-blue/30 mt-1">Management Portal</p>
         </div>
       </div>
 

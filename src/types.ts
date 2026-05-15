@@ -1,10 +1,12 @@
 export type UserRole = 'Admin' | 'Executive' | 'Music Director' | 'Member';
 export type VoiceSection = 'Soprano' | 'Alto' | 'Ténor' | 'Basse';
+export type Gender = 'Male' | 'Female';
 
 export interface Member {
   uid: string;
   fullName: string;
   role: UserRole;
+  gender: Gender;
   voiceSection?: VoiceSection;
   status: string;
   onboardingDate: any; // Firestore Timestamp

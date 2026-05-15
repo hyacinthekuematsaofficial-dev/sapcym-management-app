@@ -12,6 +12,7 @@ import Announcements from './components/Announcements';
 import PhotoGallery from './components/PhotoGallery';
 import InternalRegulations from './components/InternalRegulations';
 import Onboarding from './components/Onboarding';
+import LandingPage from './components/LandingPage';
 
 function AppContent() {
   const { user, member, loading } = useAuth();
@@ -20,15 +21,15 @@ function AppContent() {
     return (
       <div className="h-screen w-screen grid place-items-center bg-[#E4E3E0]">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-16 h-16 border-4 border-black border-t-transparent rounded-full animate-spin" />
-          <p className="font-mono text-xs uppercase font-bold tracking-widest text-gray-500">Initializing Portal...</p>
+          <div className="w-16 h-16 border-4 border-brand-blue border-t-transparent rounded-full animate-spin" />
+          <p className="font-mono text-xs uppercase font-bold tracking-widest text-gray-400">Initializing Portal...</p>
         </div>
       </div>
     );
   }
 
   if (!user) {
-    return <Onboarding />;
+    return <LandingPage />;
   }
 
   if (!member) {
@@ -41,7 +42,7 @@ function AppContent() {
         <Sidebar />
         <main className="flex-1 p-12 overflow-y-auto max-h-screen custom-scrollbar">
           <Routes>
-            <Route path="/" element={<Dashboard />} />
+            <Route path="/" element={member.pendingApproval ? <Onboarding /> : <Dashboard />} />
             <Route path="/members" element={<MemberDirectory />} />
             <Route path="/songs" element={<SongLibrary />} />
             <Route path="/attendance" element={<AttendanceSystem />} />

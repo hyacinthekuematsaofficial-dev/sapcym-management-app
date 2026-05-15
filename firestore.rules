@@ -50,6 +50,7 @@ service cloud.firestore {
       function isValidMember(data) {
         return data.fullName is string && data.fullName.size() > 0 && data.fullName.size() <= 100 &&
                data.role in ['Admin', 'Executive', 'Music Director', 'Member'] &&
+               data.gender in ['Male', 'Female'] &&
                data.status is string && data.status.size() <= 50 &&
                data.onboardingDate is timestamp &&
                data.oldMember is bool &&
